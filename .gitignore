@@ -1,0 +1,10 @@
+# Generated data / outputs
+data/
+geolocations.js
+nodes.csv
+analysis.html
+
+# Build artifacts
+pex/pex_crawler
+__pycache__/
+*.pyc

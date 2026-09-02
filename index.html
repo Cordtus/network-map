@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cosmos Network Map</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <style>
+        html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+        #map { width: 100%; height: 100%; }
+        #topbar {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: rgba(255,255,255,.96); border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,.2); padding: 8px 14px;
+            display: flex; gap: 12px; align-items: center; font-size: 13px;
+        }
+        #topbar input {
+            padding: 5px 8px; border: 1px solid #ccc; border-radius: 5px; width: 240px;
+        }
+        #topbar a#export {
+            background: #1f77ff; color: #fff; border-radius: 5px;
+            padding: 5px 10px; text-decoration: none; font-weight: 600;
+        }
+        #topbar a#export:nth-of-type(2) { background: #7b2ff7; }
+        #topbar a#export:hover { background: #1663d6; }
+        #topbar a#export:nth-of-type(2):hover { background: #5d1fc4; }
+        #topbar .counts { display: flex; gap: 12px; }
+        .counts .n { font-weight: 600; }
+        .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+        #legend {
+            position: absolute; bottom: 24px; left: 12px; z-index: 1000;
+            background: rgba(255,255,255,.95); border-radius: 8px; padding: 10px 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,.2); font-size: 12px; line-height: 1.7;
+        }
+        #legend label { display: block; cursor: pointer; }
+        #legend input { margin-right: 6px; vertical-align: middle; }
+        #status {
+            position: absolute; bottom: 24px; right: 12px; z-index: 1000;
+            background: rgba(255,255,255,.95); border-radius: 8px; padding: 6px 10px;
+            font-size: 11px; color: #555; box-shadow: 0 2px 8px rgba(0,0,0,.15);
+        }
+        .node-marker { border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+        .m-good { background: #1f77ff; }
+        .m-archive { background: #7b2ff7; }
+        .m-peer { background: #2ecc71; }
+        .leaflet-popup-content { font-size: 12px; line-height: 1.5; }
+        .leaflet-popup-content h4 { margin: 0 0 4px; font-size: 13px; }
+        .leaflet-popup-content .meta { color: #555; }
+        .leaflet-popup-content a { color: #1f77ff; }
+    </style>
+</head>
+<body>
+    <div id="topbar">
+        <input id="search" type="text" placeholder="Filter by host, moniker, city, chain..." />
+        <span class="counts" id="counts"></span>
+        <a id="export" href="nodes.csv" download="nodes.csv" title="Download node data as CSV">Export CSV</a>
+        <a id="export" href="analysis.html" title="ISP / whois / regional analysis">Analysis</a>
+    </div>
+    <div id="map"></div>
+    <div id="legend"></div>
+    <div id="status"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="geolocations.js"></script>
+    <script>
+        const data = window.networkData || { good: [], peers: [], counts: {} };
+        const state = { good: true, peers: true, archive: true };
+        let activeMarkers = [];
+
+        const icons = {
+            good: L.divIcon({ className: '', iconSize: [12, 12], iconAnchor: [6, 6],
+                html: '<div class="node-marker m-good" style="width:12px;height:12px"></div>' }),
+            archive: L.divIcon({ className: '', iconSize: [12, 12], iconAnchor: [6, 6],
+                html: '<div class="node-marker m-archive" style="width:12px;height:12px"></div>' }),
+            peer: L.divIcon({ className: '', iconSize: [10, 10], iconAnchor: [5, 5],
+                html: '<div class="node-marker m-peer" style="width:10px;height:10px"></div>' }),
+        };
+
+        const map = L.map('map');
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18, attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        const layers = {
+            good: L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 40 }),
+            peers: L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 40 }),
+        };
+        map.addLayer(layers.good);
+        map.addLayer(layers.peers);
+
+        function popupHtml(geo) {
+            const meta = [];
+            if (geo.moniker) meta.push(`<b>${escapeHtml(geo.moniker)}</b>`);
+            if (geo.chain) meta.push(`chain: ${escapeHtml(geo.chain)}`);
+            if (geo.archive) meta.push('archive node');
+            if (geo.host) meta.push(`host: <code>${escapeHtml(geo.host)}</code>`);
+            if (geo.ip) meta.push(`ip: <code>${escapeHtml(geo.ip)}</code>`);
+            if (geo.org) meta.push(`host/ISP: <code>${escapeHtml(geo.org)}</code>`);
+            if (geo.hostname) meta.push(`reverse DNS: <code>${escapeHtml(geo.hostname)}</code>`);
+            if (geo.timezone) meta.push(`timezone: <code>${escapeHtml(geo.timezone)}</code>`);
+            if (geo.hosting !== undefined && geo.hosting !== null) meta.push(`hosting: ${geo.hosting ? 'yes' : 'no'}`);
+            const whois = geo.whois || {};
+            if (whois.org) meta.push(`whois: <code>${escapeHtml(whois.org)}</code>`);
+            else if (whois.netname) meta.push(`whois: <code>${escapeHtml(whois.netname)}</code>`);
+            if (whois.cidr) meta.push(`block: <code>${escapeHtml(whois.cidr)}</code>`);
+            if (whois.abuse) meta.push(`abuse: <a href="mailto:${escapeHtml(whois.abuse)}">${escapeHtml(whois.abuse)}</a>`);
+            const loc = [geo.city, geo.region, geo.country].filter(Boolean).join(', ');
+            if (loc) meta.push(loc);
+            if (geo.rpc) meta.push(`rpc: <a href="${geo.rpc}" target="_blank">${escapeHtml(geo.rpc)}</a>`);
+            if (geo.rest) meta.push(`rest: <a href="${geo.rest}" target="_blank">${escapeHtml(geo.rest)}</a>`);
+            return `<div><h4>${escapeHtml(geo.host || geo.ip || '')}</h4><div class="meta">${meta.join('<br>')}</div></div>`;
+        }
+
+        function escapeHtml(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+
+        function addMarker(geo, layer, icon) {
+            if (!geo.latitude || !geo.longitude) return;
+            const marker = L.marker([geo.latitude, geo.longitude], { icon });
+            marker.bindPopup(popupHtml(geo));
+            marker.geo = geo;
+            layer.addLayer(marker);
+            activeMarkers.push(marker);
+        }
+
+        function build() {
+            layers.good.clearLayers();
+            layers.peers.clearLayers();
+            activeMarkers = [];
+            for (const geo of data.good || []) {
+                if (geo.archive && !state.archive) continue;
+                addMarker(geo, layers.good, geo.archive ? icons.archive : icons.good);
+            }
+            for (const geo of data.peers || []) addMarker(geo, layers.peers, icons.peer);
+            renderCounts();
+        }
+
+        function renderCounts() {
+            const c = data.counts || {};
+            const n = v => v ?? 0;
+            document.getElementById('counts').innerHTML =
+                `<span><span class="dot" style="background:#1f77ff"></span>RPC <span class="n">${n(c.good)}</span></span>` +
+                `<span><span class="dot" style="background:#2ecc71"></span>Peers <span class="n">${n(c.peers)}</span></span>`;
+        }
+
+        function buildLegend() {
+            const legend = document.getElementById('legend');
+            legend.innerHTML = `
+                <label><input type="checkbox" id="tg-good" checked> <span class="dot" style="background:#1f77ff"></span>RPC nodes</label>
+                <label><input type="checkbox" id="tg-archive" checked> <span class="dot" style="background:#7b2ff7"></span>Archive nodes</label>
+                <label><input type="checkbox" id="tg-peers" checked> <span class="dot" style="background:#2ecc71"></span>Peer nodes (no RPC)</label>`;
+            document.getElementById('tg-good').addEventListener('change', e => {
+                state.good = e.target.checked;
+                toggleLayer('good', state.good = e.target.checked);
+            });
+            document.getElementById('tg-archive').addEventListener('change', e => {
+                state.archive = e.target.checked; rebuild();
+            });
+            document.getElementById('tg-peers').addEventListener('change', e => {
+                state.peers = e.target.checked; toggleLayer('peers', state.peers = e.target.checked);
+            });
+        }
+
+        function toggleLayer(name, on) {
+            if (on && !map.hasLayer(layers[name])) map.addLayer(layers[name]);
+            if (!on && map.hasLayer(layers[name])) map.removeLayer(layers[name]);
+        }
+
+        function rebuild() {
+            layers.good.clearLayers();
+            for (const geo of data.good || []) {
+                if (geo.archive && !state.archive) continue;
+                addMarker(geo, layers.good, geo.archive ? icons.archive : icons.good);
+            }
+            renderCounts();
+        }
+
+        function applyFilter(q) {
+            q = q.trim().toLowerCase();
+            activeMarkers.forEach(m => m.setOpacity(1));
+            if (!q) return;
+            let visible = 0;
+            activeMarkers.forEach(m => {
+                const geo = m.geo || {};
+                const hay = [geo.host, geo.ip, geo.moniker, geo.city, geo.region, geo.country, geo.chain, geo.org,
+                    (geo.whois || {}).org, (geo.whois || {}).netname]
+                    .filter(Boolean).join(' ').toLowerCase();
+                const match = hay.includes(q);
+                m.setOpacity(match ? 1 : 0.15);
+                if (match) visible++;
+            });
+            document.getElementById('status').textContent = `${visible} matching`;
+        }
+
+        document.getElementById('search').addEventListener('input', e => applyFilter(e.target.value));
+
+        buildLegend();
+        build();
+        const all = activeMarkers;
+        if (all.length) map.fitBounds(L.latLngBounds(all.map(m => m.getLatLng())).pad(0.15));
+        else map.setView([20, 0], 2);
+        document.getElementById('status').textContent =
+            `generated ${data.generatedAt || '?'}${data.chainId ? ' · ' + data.chainId : ''}`;
+    </script>
+</body>
+</html>
