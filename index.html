@@ -45,42 +45,48 @@
 
         #appbar {
             position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-            z-index: 1200; display: flex; align-items: center; gap: 10px;
-            background: var(--surface); color: var(--text);
-            border: 1px solid var(--border); border-radius: 12px;
-            box-shadow: var(--shadow); padding: 8px 12px; width: min(92vw, 860px);
+            z-index: 1200; display: flex; align-items: center; gap: 14px;
+            background: color-mix(in srgb, var(--surface) 86%, transparent);
+            -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+            color: var(--text); border: 1px solid var(--border); border-radius: 12px;
+            box-shadow: var(--shadow); padding: 8px 12px; width: min(94vw, 760px);
         }
-        #brand { font-weight: 700; font-size: 15px; letter-spacing: .01em; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
-        #brand svg { width: 20px; height: 20px; }
+        .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; letter-spacing: -.01em; white-space: nowrap; }
+        .brand .mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; }
+        .brand .mark svg { width: 15px; height: 15px; }
+        #appbar nav { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+        .tabs { display: flex; gap: 2px; background: var(--surface-2); padding: 3px; border-radius: 9px; }
+        .tab { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--muted); text-decoration: none; transition: background .15s, color .15s; }
+        .tab:hover { color: var(--text); }
+        .tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+        .tab svg { width: 14px; height: 14px; }
+        .btn { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 13px; border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; border: 1px solid transparent; transition: background .15s, border-color .15s, color .15s; white-space: nowrap; }
+        .btn svg { width: 15px; height: 15px; }
+        .btn.outline { border-color: var(--border); color: var(--text); }
+        .btn.outline:hover { background: var(--surface-2); border-color: var(--muted); }
+        .btn.ghost { color: var(--muted); }
+        .btn.ghost:hover { background: var(--surface-2); color: var(--text); }
+        .btn.icon { padding: 0 9px; }
+
+        /* Map controls sit below the floating app bar */
+        .leaflet-top.leaflet-left { top: 68px; }
         #search {
-            flex: 1; min-width: 120px; padding: 8px 12px; border: 1px solid var(--border);
-            border-radius: 8px; background: var(--surface-2); color: var(--text);
-            font-size: 13px; outline: none;
+            position: absolute; top: 68px; right: 12px; z-index: 1200;
+            width: min(320px, 70vw); padding: 9px 13px; border: 1px solid var(--border);
+            border-radius: 10px; background: color-mix(in srgb, var(--surface) 90%, transparent);
+            -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+            color: var(--text); font-size: 13px; box-shadow: var(--shadow); outline: none;
         }
         #search:focus { border-color: var(--accent); }
-        .counts { display: flex; gap: 10px; font-size: 12px; color: var(--muted); white-space: nowrap; }
-        .counts .n { font-weight: 600; color: var(--text); }
-        .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
-
-        .btn {
-            display: inline-flex; align-items: center; gap: 6px; border: none; cursor: pointer;
-            font-size: 13px; font-weight: 600; border-radius: 8px; padding: 8px 14px;
-            text-decoration: none; transition: background .15s ease, transform .05s ease; white-space: nowrap;
-        }
-        .btn:active { transform: translateY(1px); }
-        .btn-primary { background: var(--accent); color: #fff; }
-        .btn-primary:hover { background: var(--accent-hover); }
-        .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
-        .btn-secondary:hover { background: var(--surface-2); }
-        .btn-ghost { background: transparent; color: var(--muted); border: 1px solid transparent; padding: 8px 10px; }
-        .btn-ghost:hover { background: var(--surface-2); color: var(--text); }
-        .btn svg { width: 15px; height: 15px; }
+        .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
 
         #legend {
             position: absolute; bottom: 24px; left: 12px; z-index: 1000;
             background: var(--surface); color: var(--text); border: 1px solid var(--border);
             border-radius: 10px; padding: 10px 12px; box-shadow: var(--shadow); font-size: 12px; line-height: 1.8;
         }
+        #legend .legend-counts { display: flex; gap: 12px; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 6px; }
+        #legend .legend-counts .n { font-weight: 600; color: var(--text); }
         #legend label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
         #legend input { accent-color: var(--accent); }
         #status {
@@ -102,9 +108,10 @@
             filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
         }
         @media (max-width: 760px) {
-            #appbar { flex-wrap: wrap; }
-            .counts { order: 3; width: 100%; justify-content: space-between; }
-            #search { order: 2; flex-basis: 100%; }
+            #appbar { flex-wrap: wrap; gap: 8px; }
+            #appbar nav { width: 100%; justify-content: flex-end; }
+            .leaflet-top.leaflet-left { top: 118px; }
+            #search { top: 168px; left: 12px; right: 12px; width: auto; }
         }
     </style>
 </head>
@@ -112,25 +119,21 @@
     <div id="map"></div>
 
     <div id="appbar">
-        <div id="brand">
-            <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><g stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="16" y1="9" x2="9" y2="21"/><line x1="16" y1="9" x2="23" y2="21"/><line x1="9" y1="21" x2="23" y2="21"/></g><circle cx="16" cy="9" r="3.2" fill="#fff"/><circle cx="9" cy="21" r="3.2" fill="#fff"/><circle cx="23" cy="21" r="3.2" fill="#fff"/></svg>
+        <div class="brand">
+            <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/><line x1="12" y1="5" x2="5" y2="19"/><line x1="12" y1="5" x2="19" y2="19"/><line x1="5" y1="19" x2="19" y2="19"/></svg></span>
             Map Of Nodes
         </div>
-        <input id="search" type="text" placeholder="Filter by host, moniker, city, ISP, chain..." />
-        <span class="counts" id="counts"></span>
-        <a class="btn btn-secondary" href="nodes.csv" download="nodes.csv" title="Download node data as CSV">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export CSV
-        </a>
-        <a class="btn btn-primary" href="insights.html" title="ISP, WHOIS and regional analysis">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-            Insights
-        </a>
-        <button id="themeToggle" class="btn btn-ghost" title="Toggle theme" aria-label="Toggle theme">
-            <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-        </button>
+        <nav>
+            <div class="tabs">
+                <a class="tab active" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20l-6-6 6-6"/><path d="M15 4l6 6-6 6"/></svg>Map</a>
+                <a class="tab" href="insights.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Insights</a>
+            </div>
+            <a class="btn outline" href="nodes.csv" download="nodes.csv" title="Download node data as CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</a>
+            <button class="btn ghost icon" id="themeToggle" title="Toggle theme"><svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg id="iconSun" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+        </nav>
     </div>
+
+    <input id="search" type="text" placeholder="Filter by host, moniker, city, ISP..." />
 
     <div id="legend"></div>
     <div id="status"></div>
@@ -275,7 +278,8 @@
         function renderCounts() {
             const c = data.counts || {};
             const n = v => v ?? 0;
-            document.getElementById('counts').innerHTML =
+            const el = document.getElementById('legend-counts');
+            if (el) el.innerHTML =
                 `<span><span class="dot" style="background:var(--good)"></span>RPC <span class="n">${n(c.good)}</span></span>` +
                 `<span><span class="dot" style="background:var(--peer)"></span>Peers <span class="n">${n(c.peers)}</span></span>`;
         }
@@ -283,6 +287,7 @@
         function buildLegend() {
             const legend = document.getElementById('legend');
             legend.innerHTML = `
+                <div class="legend-counts" id="legend-counts"></div>
                 <label><input type="checkbox" id="tg-good" checked> <span class="dot" style="background:var(--good)"></span>RPC nodes</label>
                 <label><input type="checkbox" id="tg-archive" checked> <span class="dot" style="background:var(--archive)"></span>Archive nodes</label>
                 <label><input type="checkbox" id="tg-peers" checked> <span class="dot" style="background:var(--peer)"></span>Peer nodes (no RPC)</label>`;

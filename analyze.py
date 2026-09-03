@@ -178,18 +178,22 @@ TEMPLATE = r"""<!DOCTYPE html>
   body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
          background:var(--bg); color:var(--text); }
   header {
-    position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:18px;
-    padding:12px 28px; background:color-mix(in srgb, var(--surface) 86%, transparent);
+    position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:16px;
+    padding:10px 28px; background:color-mix(in srgb, var(--surface) 86%, transparent);
     -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
     border-bottom:1px solid var(--border);
   }
-  .brand { display:flex; align-items:center; gap:10px; font-weight:650; font-size:15px; letter-spacing:-.01em; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:650; font-size:15px; letter-spacing:-.01em; white-space:nowrap; }
   .brand .mark { width:26px; height:26px; border-radius:7px; background:var(--accent); color:#fff;
-                 display:inline-flex; align-items:center; justify-content:center; box-shadow:var(--shadow); }
+                 display:inline-flex; align-items:center; justify-content:center; }
   .brand .mark svg { width:15px; height:15px; }
-  .brand .crumb { display:inline-flex; align-items:center; gap:10px; color:var(--muted); font-weight:500; font-size:13px; }
-  .brand .crumb::before { content:""; width:4px; height:4px; border-radius:50%; background:var(--border); }
-  nav { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  header nav { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .tabs { display:flex; gap:2px; background:var(--surface-2); padding:3px; border-radius:9px; }
+  .tab { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 11px; border-radius:7px;
+         font-size:13px; font-weight:600; color:var(--muted); text-decoration:none; transition:background .15s,color .15s; }
+  .tab:hover { color:var(--text); }
+  .tab.active { background:var(--surface); color:var(--text); box-shadow:0 1px 2px rgba(0,0,0,.06); }
+  .tab svg { width:14px; height:14px; }
   .btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 13px; border-radius:8px;
          font-size:13px; font-weight:600; text-decoration:none; cursor:pointer; border:1px solid transparent;
          transition:background .15s, border-color .15s, color .15s; white-space:nowrap; }
@@ -223,11 +227,14 @@ TEMPLATE = r"""<!DOCTYPE html>
 <header>
   <div class="brand">
     <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/><line x1="12" y1="5" x2="5" y2="19"/><line x1="12" y1="5" x2="19" y2="19"/><line x1="5" y1="19" x2="19" y2="19"/></svg></span>
-    Map Of Nodes <span class="crumb">Insights</span>
+    Map Of Nodes
   </div>
   <nav>
-    <a class="btn ghost" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6v6h6"/><path d="M3 10a9 9 0 1 0 3-7"/></svg>Map</a>
-    <a class="btn outline" href="nodes.csv" download="nodes.csv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>CSV</a>
+    <div class="tabs">
+      <a class="tab" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20l-6-6 6-6"/><path d="M15 4l6 6-6 6"/></svg>Map</a>
+      <a class="tab active" href="insights.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Insights</a>
+    </div>
+    <a class="btn outline" href="nodes.csv" download="nodes.csv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</a>
     <button class="btn ghost icon" id="themeToggle" title="Toggle theme"><svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg id="iconSun" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
   </nav>
 </header>
