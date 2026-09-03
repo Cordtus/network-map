@@ -152,6 +152,12 @@
                 const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark'
                     : (localStorage.getItem('map-theme') === 'light' ? 'light' : 'system');
                 apply(cur === 'system' ? 'light' : cur === 'light' ? 'dark' : 'system');
+                window.__onThemeChange && window.__onThemeChange();
+            });
+            matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                if ((localStorage.getItem('map-theme') || 'system') === 'system') {
+                    window.__onThemeChange && window.__onThemeChange();
+                }
             });
         })();
 
@@ -169,9 +175,29 @@
         };
 
         const map = L.map('map');
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 18, attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
+
+        // Dark (night-view) vs light basemap; swap live with the theme.
+        const darkTiles = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+        let tileLayer = null;
+        const isDark = () => {
+            const t = document.documentElement.getAttribute('data-theme');
+            if (t === 'dark') return true;
+            if (t === 'light') return false;
+            return matchMedia('(prefers-color-scheme: dark)').matches;
+        };
+        const applyTiles = () => {
+            if (tileLayer) map.removeLayer(tileLayer);
+            tileLayer = L.tileLayer(isDark() ? darkTiles : lightTiles, {
+                maxZoom: 18,
+                attribution: isDark()
+                    ? '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/">CARTO</a>'
+                    : '&copy; OpenStreetMap contributors',
+            });
+            tileLayer.addTo(map);
+        };
+        window.__onThemeChange = applyTiles;
+        applyTiles();
 
         const layers = {
             good: L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 40 }),
