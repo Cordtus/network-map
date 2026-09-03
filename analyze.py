@@ -178,30 +178,34 @@ TEMPLATE = r"""<!DOCTYPE html>
   body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
          background:var(--bg); color:var(--text); }
   header {
-    position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:14px;
-    padding:16px 24px; background:var(--surface); border-bottom:1px solid var(--border);
+    position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:18px;
+    padding:12px 28px; background:color-mix(in srgb, var(--surface) 86%, transparent);
+    -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--border);
   }
-  header .logo { display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; }
-  header .logo svg { width:22px; height:22px; }
-  header nav { margin-left:auto; display:flex; align-items:center; gap:10px; }
-  header .sub { color:var(--muted); font-size:12px; }
-  .btn { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border);
-         cursor:pointer; font-size:13px; font-weight:600; border-radius:8px; padding:8px 14px;
-         text-decoration:none; background:transparent; color:var(--text); transition:background .15s; white-space:nowrap; }
-  .btn:hover { background:var(--surface-2); }
-  .btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
-  .btn.primary:hover { filter:brightness(.94); }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:650; font-size:15px; letter-spacing:-.01em; }
+  .brand .mark { width:26px; height:26px; border-radius:7px; background:var(--accent); color:#fff;
+                 display:inline-flex; align-items:center; justify-content:center; box-shadow:var(--shadow); }
+  .brand .mark svg { width:15px; height:15px; }
+  .brand .crumb { display:inline-flex; align-items:center; gap:10px; color:var(--muted); font-weight:500; font-size:13px; }
+  .brand .crumb::before { content:""; width:4px; height:4px; border-radius:50%; background:var(--border); }
+  nav { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .btn { display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 13px; border-radius:8px;
+         font-size:13px; font-weight:600; text-decoration:none; cursor:pointer; border:1px solid transparent;
+         transition:background .15s, border-color .15s, color .15s; white-space:nowrap; }
   .btn svg { width:15px; height:15px; }
-  .btn-ghost { border-color:transparent; padding:8px 10px; color:var(--muted); }
-  .btn-ghost:hover { background:var(--surface-2); color:var(--text); }
+  .btn.ghost { color:var(--muted); }
+  .btn.ghost:hover { background:var(--surface-2); color:var(--text); }
+  .btn.outline { border-color:var(--border); color:var(--text); }
+  .btn.outline:hover { background:var(--surface-2); border-color:var(--muted); }
+  .btn.icon { padding:0 9px; }
 
-  .stats { display:flex; flex-wrap:wrap; gap:18px; align-items:center; padding:8px 2px; }
+  .stats { display:flex; flex-wrap:wrap; gap:22px 48px; align-items:flex-start; padding:4px 0; }
   .stat { min-width: 96px; }
-  .stat .n { font-size:24px; font-weight:700; line-height:1.2; }
-  .stat .l { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
-  .panel.overview { min-height: 180px; display:flex; flex-direction:column; justify-content:center; }
+  .stat .n { font-size:22px; font-weight:700; line-height:1.15; }
+  .stat .l { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
 
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:16px; padding:0 24px 28px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:16px; padding:24px 28px 36px; }
   .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; box-shadow:var(--shadow); }
   .panel h2 { margin:0 0 10px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
   .panel .chart { position:relative; height:320px; }
@@ -217,14 +221,14 @@ TEMPLATE = r"""<!DOCTYPE html>
 </head>
 <body>
 <header>
-  <div class="logo">
-    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><g stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="16" y1="9" x2="9" y2="21"/><line x1="16" y1="9" x2="23" y2="21"/><line x1="9" y1="21" x2="23" y2="21"/></g><circle cx="16" cy="9" r="3.2" fill="#fff"/><circle cx="9" cy="21" r="3.2" fill="#fff"/><circle cx="23" cy="21" r="3.2" fill="#fff"/></svg>
-    Map Of Nodes <span class="sub">/ Insights</span>
+  <div class="brand">
+    <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/><line x1="12" y1="5" x2="5" y2="19"/><line x1="12" y1="5" x2="19" y2="19"/><line x1="5" y1="19" x2="19" y2="19"/></svg></span>
+    Map Of Nodes <span class="crumb">Insights</span>
   </div>
   <nav>
-    <a class="btn" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6v6h6"/><path d="M3 10a9 9 0 1 0 3-7"/></svg>Map</a>
-    <a class="btn" href="nodes.csv" download="nodes.csv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>CSV</a>
-    <button class="btn btn-ghost" id="themeToggle" title="Toggle theme"><svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg id="iconSun" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+    <a class="btn ghost" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6v6h6"/><path d="M3 10a9 9 0 1 0 3-7"/></svg>Map</a>
+    <a class="btn outline" href="nodes.csv" download="nodes.csv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>CSV</a>
+    <button class="btn ghost icon" id="themeToggle" title="Toggle theme"><svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg id="iconSun" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
   </nav>
 </header>
 
