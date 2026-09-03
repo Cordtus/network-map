@@ -2,10 +2,7 @@ module network-map/pex
 
 go 1.27
 
-require (
-	github.com/cometbft/cometbft v0.38.19
-	github.com/cosmos/gogoproto v1.7.2
-)
+require github.com/cometbft/cometbft v0.38.23
 
 require (
 	github.com/DataDog/zstd v1.4.5 // indirect
@@ -18,6 +15,7 @@ require (
 	github.com/cockroachdb/redact v1.1.5 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/cometbft/cometbft-db v0.14.1 // indirect
+	github.com/cosmos/gogoproto v1.7.2 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/dgraph-io/badger/v4 v4.2.0 // indirect
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
@@ -48,8 +46,7 @@ require (
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	github.com/sasha-s/go-deadlock v0.3.6 // indirect
-	github.com/supranational/blst v0.3.16 // indirect
+	github.com/sasha-s/go-deadlock v0.3.9 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
 	go.etcd.io/bbolt v1.4.0-alpha.0.0.20240404170359-43604f3112c5 // indirect
 	go.opencensus.io v0.24.0 // indirect
@@ -62,5 +59,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251029180050-ab9386a59fda // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace github.com/cometbft/cometbft => /home/cordt/repos/cometbft

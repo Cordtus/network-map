@@ -45,8 +45,45 @@ python3 crawler.py --help
 ## Requirements
 
 - Python 3.11+ with `requests` (`pip install requests`)
-- Go 1.21+ (only needed for the P2P/PEX expansion; the pex_crawler binary is
-  built on first use)
+- Go 1.21+ (only needed for the P2P/PEX expansion; `pex_crawler` builds on
+  first run against the published CometBFT module — no local checkout needed)
+
+## Setup
+
+```bash
+git clone git@github.com:Cordtus/network-map.git
+cd network-map
+pip install requests
+```
+
+The geolocation step uses a bundled ipinfo.io token by default (legacy free
+plan, ~50k lookups/month). To use your own token:
+
+```bash
+export IPINFO_TOKEN=your_token
+```
+
+Optionally enrich each IP with ip-api datacenter flags (`hosting` / `mobile` /
+`proxy`) — opt-in, rate-limited to ~45/min so a full network takes a while:
+
+```bash
+python3 geolocate.py --data-dir data --ipapi-enrich
+```
+
+## Per-node data fields
+
+| Field | Meaning |
+|---|---|
+| `host`, `ip`, `latitude`, `longitude` | node identifier + coordinates |
+| `city`, `region`, `country`, `countryCode` | geographic location |
+| `timezone` | IANA timezone (e.g. `Asia/Kolkata`) |
+| `postal` | postal / ZIP code |
+| `hostname` | reverse-DNS / PTR name (e.g. `ns5021787.ip-148-113-1.net`) |
+| `asn`, `org` | autonomous system number + provider/ISP (e.g. `AS16276`, `OVH SAS`) |
+| `whois.{netname,org,cidr,abuse}` | RDAP registry record (allocated block, registrant, abuse contact) |
+| `hosting`, `mobile`, `proxy` | ip-api datacenter flags (via `--ipapi-enrich`) |
+| `moniker`, `chain`, `archive`, `fresh` | on-chain node metadata |
+| `rpc`, `rest` | live endpoints when the node exposes them |
 
 ## Outputs
 
