@@ -43,10 +43,10 @@ fi
 echo "==> Geolocating hosts"
 python3 geolocate.py --data-dir "$DATA_DIR"
 
-echo "==> Building analysis dashboard"
+echo "==> Building insights dashboard"
 python3 analyze.py --data-dir "$DATA_DIR"
 
-echo "==> Serving at http://127.0.0.1:$PORT/index.html (map) and /analysis.html (dashboards)"
+echo "==> Serving at http://127.0.0.1:$PORT/index.html (map) and /insights.html (insights)"
 python3 -m http.server "$PORT" --bind 127.0.0.1 --directory "$DIR" >/dev/null 2>&1 &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT

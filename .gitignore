@@ -2,7 +2,7 @@
 data/
 geolocations.js
 nodes.csv
-analysis.html
+insights.html
 
 # Build artifacts
 pex/pex_crawler

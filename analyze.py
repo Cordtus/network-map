@@ -145,11 +145,11 @@ def main(argv: list[str] | None = None) -> int:
         ],
     }
 
-    out = Path(__file__).resolve().parent / "analysis.html"
+    out = Path(__file__).resolve().parent / "insights.html"
     html = TEMPLATE.replace("/*__DATA__*/", json.dumps(data))
     out.write_text(html)
 
-    print("analysis.html written to", out)
+    print("insights.html written to", out)
     print(json.dumps(stats, indent=2))
     print("top countries:", countries.most_common(6))
     print("top ISPs:", isps.most_common(6))
@@ -161,38 +161,83 @@ TEMPLATE = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Secret Network Node Analysis</title>
+<title>Map Of Nodes — Insights</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-  :root { --blue:#1f77ff; --green:#2ecc71; --purple:#7b2ff7; --red:#e74c3c; }
-  body { margin:0; font-family:system-ui,sans-serif; background:#0f1420; color:#e6ebf5; }
-  header { padding:22px 28px; border-bottom:1px solid #232b3d; display:flex; align-items:baseline; gap:18px; }
-  header h1 { margin:0; font-size:20px; }
-  header a { color:var(--blue); text-decoration:none; font-size:13px; }
-  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; padding:22px 28px; }
-  .card { background:#171e2e; border:1px solid #232b3d; border-radius:10px; padding:14px 16px; }
+  :root {
+    --bg:#f1f3f7; --surface:#ffffff; --surface-2:#f5f6f9; --border:#e2e5ec;
+    --text:#171a21; --muted:#5f6b7a; --accent:#1f77ff; --accent-2:#7b2ff7;
+    --shadow:0 8px 24px rgba(20,30,55,.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#0d1119; --surface:#141a26; --surface-2:#1a2130; --border:#252d3f;
+      --text:#e6ebf5; --muted:#8b96ad; --accent:#4c9aff; --accent-2:#a06bff;
+      --shadow:0 8px 28px rgba(0,0,0,.45);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:#0d1119; --surface:#141a26; --surface-2:#1a2130; --border:#252d3f;
+    --text:#e6ebf5; --muted:#8b96ad; --accent:#4c9aff; --accent-2:#a06bff;
+    --shadow:0 8px 28px rgba(0,0,0,.45);
+  }
+  :root[data-theme="light"] {
+    --bg:#f1f3f7; --surface:#ffffff; --surface-2:#f5f6f9; --border:#e2e5ec;
+    --text:#171a21; --muted:#5f6b7a; --accent:#1f77ff; --accent-2:#7b2ff7;
+    --shadow:0 8px 24px rgba(20,30,55,.10);
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+         background:var(--bg); color:var(--text); }
+  header {
+    position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:14px;
+    padding:16px 24px; background:var(--surface); border-bottom:1px solid var(--border);
+  }
+  header .logo { display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; }
+  header .logo svg { width:22px; height:22px; }
+  header nav { margin-left:auto; display:flex; align-items:center; gap:10px; }
+  header .sub { color:var(--muted); font-size:12px; }
+  .btn { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border);
+         cursor:pointer; font-size:13px; font-weight:600; border-radius:8px; padding:8px 14px;
+         text-decoration:none; background:transparent; color:var(--text); transition:background .15s; white-space:nowrap; }
+  .btn:hover { background:var(--surface-2); }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn.primary:hover { filter:brightness(.94); }
+  .btn svg { width:15px; height:15px; }
+  .btn-ghost { border-color:transparent; padding:8px 10px; color:var(--muted); }
+  .btn-ghost:hover { background:var(--surface-2); color:var(--text); }
+
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; padding:22px 24px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow); }
   .card .n { font-size:26px; font-weight:700; }
-  .card .l { font-size:12px; color:#8b96ad; text-transform:uppercase; letter-spacing:.05em; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:16px; padding:0 28px 28px; }
-  .panel { background:#171e2e; border:1px solid #232b3d; border-radius:10px; padding:16px; }
-  .panel h2 { margin:0 0 10px; font-size:14px; color:#aeb8cc; }
+  .card .l { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:16px; padding:0 24px 28px; }
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; box-shadow:var(--shadow); }
+  .panel h2 { margin:0 0 10px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
   .panel .chart { position:relative; height:320px; }
+
   table { border-collapse:collapse; width:100%; font-size:12px; }
-  th,td { padding:6px 10px; text-align:left; border-bottom:1px solid #232b3d; white-space:nowrap; }
-  th { position:sticky; top:0; background:#171e2e; color:#8b96ad; text-transform:uppercase; font-size:10px; letter-spacing:.05em; }
+  th,td { padding:6px 10px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
+  th { position:sticky; top:0; background:var(--surface); color:var(--muted); text-transform:uppercase; font-size:10px; letter-spacing:.05em; }
   .pill { display:inline-block; padding:1px 8px; border-radius:10px; font-size:10px; font-weight:600; }
-  .pill.rpc { background:rgba(31,119,255,.2); color:#6ea6ff; }
-  .pill.peer { background:rgba(46,204,113,.15); color:#4fe38b; }
+  .pill.rpc { background:rgba(31,119,255,.18); color:var(--accent); }
+  .pill.peer { background:rgba(46,204,113,.16); color:#16a34a; }
   .table-wrap { overflow:auto; max-height:560px; }
-  .muted { color:#8b96ad; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Secret Network node analysis</h1>
-  <a href="index.html">&larr; map</a>
-  <a href="nodes.csv">download CSV</a>
-  <span class="muted" id="gen"></span>
+  <div class="logo">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><g stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="16" y1="9" x2="9" y2="21"/><line x1="16" y1="9" x2="23" y2="21"/><line x1="9" y1="21" x2="23" y2="21"/></g><circle cx="16" cy="9" r="3.2" fill="#fff"/><circle cx="9" cy="21" r="3.2" fill="#fff"/><circle cx="23" cy="21" r="3.2" fill="#fff"/></svg>
+    Map Of Nodes <span class="sub">/ Insights</span>
+  </div>
+  <nav>
+    <span class="sub" id="gen"></span>
+    <a class="btn" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6v6h6"/><path d="M3 10a9 9 0 1 0 3-7"/></svg>Map</a>
+    <a class="btn" href="nodes.csv" download="nodes.csv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>CSV</a>
+    <button class="btn btn-ghost" id="themeToggle" title="Toggle theme"><svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg id="iconSun" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+  </nav>
 </header>
 
 <div class="cards" id="cards"></div>
@@ -217,6 +262,26 @@ TEMPLATE = r"""<!DOCTYPE html>
 </div></div>
 
 <script>
+// ---- theme: default to system, overridable, persisted ----
+(function () {
+  const stored = localStorage.getItem('map-theme');
+  const theme = stored === 'light' || stored === 'dark' ? stored : 'system';
+  const moon = document.getElementById('iconMoon'), sun = document.getElementById('iconSun');
+  const apply = t => {
+    document.documentElement.setAttribute('data-theme', t === 'system' ? '' : t);
+    const dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+    moon.style.display = dark ? 'block' : 'none';
+    sun.style.display = dark ? 'none' : 'block';
+    localStorage.setItem('map-theme', t);
+  };
+  apply(theme);
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark'
+      : (localStorage.getItem('map-theme') === 'light' ? 'light' : 'system');
+    apply(cur === 'system' ? 'light' : cur === 'light' ? 'dark' : 'system');
+  });
+})();
+
 const DATA = /*__DATA__*/;
 const D = DATA;
 
@@ -232,14 +297,14 @@ const defs = [
 cards.innerHTML = defs.map(([l, n]) =>
   `<div class="card"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
 
-const grid = '#232b3d', panel = '#171e2e', text = '#e6ebf5';
-Chart.defaults.color = '#aeb8cc';
+const grid = 'transparent';
+Chart.defaults.color = '#8b96ad';
 Chart.defaults.borderColor = grid;
 Chart.defaults.font.family = 'system-ui, sans-serif';
 
 function bar(id, labels, values, color, horizontal) {
   new Chart(document.getElementById(id), {
-    type: horizontal ? 'bar' : 'bar',
+    type: 'bar',
     data: { labels, datasets: [{ data: values, backgroundColor: color || 'rgba(31,119,255,.75)', borderRadius: 4 }] },
     options: { indexAxis: horizontal ? 'y' : 'x', maintainAspectRatio: false, plugins: { legend: { display: false } } }
   });

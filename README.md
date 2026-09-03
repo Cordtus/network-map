@@ -1,7 +1,7 @@
 # Network Map
 
 Crawl a CometBFT / Cosmos-SDK network from a single endpoint, geolocate every
-node (with ISP + WHOIS), and plot it on a map with an analysis dashboard.
+node (with ISP + WHOIS), and plot it on a map with an insights dashboard.
 
 Live deployment: https://netmap.basementnodes.ca
 
@@ -27,7 +27,7 @@ Live deployment: https://netmap.basementnodes.ca
 
 That single endpoint seeds the crawl, chain-id is auto-detected (`secret-4`),
 the peer network is expanded over P2P/PEX, everything is geolocated + enriched,
-and a local server opens the map and analysis at http://127.0.0.1:8000.
+and a local server opens the map and insights at http://127.0.0.1:8000.
 
 Seeds from the chain registry too:
 
@@ -95,7 +95,7 @@ python3 geolocate.py --data-dir data --ipapi-enrich
 | `data/all_nodes.json` | geo + ISP + WHOIS + flags per node |
 | `nodes.csv` | full flat export (host, geo, timezone, ASN, ISP, WHOIS, ...) |
 | `geolocations.js` | map data (loaded by `index.html`) |
-| `analysis.html` | ISP / regional / WHOIS / timezone dashboards |
+| `insights.html` | ISP / regional / WHOIS / timezone dashboards |
 
 ## Layout
 

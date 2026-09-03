@@ -3,63 +3,130 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cosmos Network Map</title>
+    <title>Map Of Nodes</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     <style>
-        html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+        :root {
+            --bg: #eef0f4; --surface: #ffffff; --surface-2: #f5f6f9;
+            --border: #e2e5ec; --text: #171a21; --muted: #5f6b7a;
+            --accent: #1f77ff; --accent-hover: #1663d6; --accent-2: #7b2ff7;
+            --accent-2-hover: #5d1fc4; --good: #1f77ff; --archive: #7b2ff7;
+            --peer: #2ecc71; --shadow: 0 8px 24px rgba(20, 30, 55, .12);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --bg: #0d1119; --surface: #141a26; --surface-2: #1a2130;
+                --border: #252d3f; --text: #e6ebf5; --muted: #8b96ad;
+                --good: #4c9aff; --archive: #a06bff; --peer: #3ee08a;
+                --shadow: 0 8px 28px rgba(0, 0, 0, .45);
+            }
+        }
+        :root[data-theme="dark"] {
+            --bg: #0d1119; --surface: #141a26; --surface-2: #1a2130;
+            --border: #252d3f; --text: #e6ebf5; --muted: #8b96ad;
+            --good: #4c9aff; --archive: #a06bff; --peer: #3ee08a;
+            --shadow: 0 8px 28px rgba(0, 0, 0, .45);
+        }
+        :root[data-theme="light"] {
+            --bg: #eef0f4; --surface: #ffffff; --surface-2: #f5f6f9;
+            --border: #e2e5ec; --text: #171a21; --muted: #5f6b7a;
+            --good: #1f77ff; --archive: #7b2ff7; --peer: #2ecc71;
+            --shadow: 0 8px 24px rgba(20, 30, 55, .12);
+        }
+
+        * { box-sizing: border-box; }
+        html, body { margin: 0; height: 100%; }
+        body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); }
         #map { width: 100%; height: 100%; }
-        #topbar {
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; background: rgba(255,255,255,.96); border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,.2); padding: 8px 14px;
-            display: flex; gap: 12px; align-items: center; font-size: 13px;
+
+        #appbar {
+            position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+            z-index: 1200; display: flex; align-items: center; gap: 10px;
+            background: var(--surface); color: var(--text);
+            border: 1px solid var(--border); border-radius: 12px;
+            box-shadow: var(--shadow); padding: 8px 12px; width: min(92vw, 860px);
         }
-        #topbar input {
-            padding: 5px 8px; border: 1px solid #ccc; border-radius: 5px; width: 240px;
+        #brand { font-weight: 700; font-size: 15px; letter-spacing: .01em; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+        #brand svg { width: 20px; height: 20px; }
+        #search {
+            flex: 1; min-width: 120px; padding: 8px 12px; border: 1px solid var(--border);
+            border-radius: 8px; background: var(--surface-2); color: var(--text);
+            font-size: 13px; outline: none;
         }
-        #topbar a#export {
-            background: #1f77ff; color: #fff; border-radius: 5px;
-            padding: 5px 10px; text-decoration: none; font-weight: 600;
+        #search:focus { border-color: var(--accent); }
+        .counts { display: flex; gap: 10px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+        .counts .n { font-weight: 600; color: var(--text); }
+        .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
+
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px; border: none; cursor: pointer;
+            font-size: 13px; font-weight: 600; border-radius: 8px; padding: 8px 14px;
+            text-decoration: none; transition: background .15s ease, transform .05s ease; white-space: nowrap;
         }
-        #topbar a#export:nth-of-type(2) { background: #7b2ff7; }
-        #topbar a#export:hover { background: #1663d6; }
-        #topbar a#export:nth-of-type(2):hover { background: #5d1fc4; }
-        #topbar .counts { display: flex; gap: 12px; }
-        .counts .n { font-weight: 600; }
-        .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+        .btn:active { transform: translateY(1px); }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--surface-2); }
+        .btn-ghost { background: transparent; color: var(--muted); border: 1px solid transparent; padding: 8px 10px; }
+        .btn-ghost:hover { background: var(--surface-2); color: var(--text); }
+        .btn svg { width: 15px; height: 15px; }
+
         #legend {
             position: absolute; bottom: 24px; left: 12px; z-index: 1000;
-            background: rgba(255,255,255,.95); border-radius: 8px; padding: 10px 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,.2); font-size: 12px; line-height: 1.7;
+            background: var(--surface); color: var(--text); border: 1px solid var(--border);
+            border-radius: 10px; padding: 10px 12px; box-shadow: var(--shadow); font-size: 12px; line-height: 1.8;
         }
-        #legend label { display: block; cursor: pointer; }
-        #legend input { margin-right: 6px; vertical-align: middle; }
+        #legend label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        #legend input { accent-color: var(--accent); }
         #status {
             position: absolute; bottom: 24px; right: 12px; z-index: 1000;
-            background: rgba(255,255,255,.95); border-radius: 8px; padding: 6px 10px;
-            font-size: 11px; color: #555; box-shadow: 0 2px 8px rgba(0,0,0,.15);
+            background: var(--surface); color: var(--muted); border: 1px solid var(--border);
+            border-radius: 10px; padding: 6px 10px; font-size: 11px; box-shadow: var(--shadow);
         }
         .node-marker { border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
-        .m-good { background: #1f77ff; }
-        .m-archive { background: #7b2ff7; }
-        .m-peer { background: #2ecc71; }
-        .leaflet-popup-content { font-size: 12px; line-height: 1.5; }
+        .m-good { background: var(--good); }
+        .m-archive { background: var(--archive); }
+        .m-peer { background: var(--peer); }
+        .leaflet-popup-content { font-size: 12px; line-height: 1.5; color: #222; }
         .leaflet-popup-content h4 { margin: 0 0 4px; font-size: 13px; }
         .leaflet-popup-content .meta { color: #555; }
-        .leaflet-popup-content a { color: #1f77ff; }
+        .leaflet-popup-content a { color: var(--good); }
+        .leaflet-container { background: var(--bg); }
+        @media (max-width: 760px) {
+            #appbar { flex-wrap: wrap; }
+            .counts { order: 3; width: 100%; justify-content: space-between; }
+            #search { order: 2; flex-basis: 100%; }
+        }
     </style>
 </head>
 <body>
-    <div id="topbar">
-        <input id="search" type="text" placeholder="Filter by host, moniker, city, chain..." />
-        <span class="counts" id="counts"></span>
-        <a id="export" href="nodes.csv" download="nodes.csv" title="Download node data as CSV">Export CSV</a>
-        <a id="export" href="analysis.html" title="ISP / whois / regional analysis">Analysis</a>
-    </div>
     <div id="map"></div>
+
+    <div id="appbar">
+        <div id="brand">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><g stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="16" y1="9" x2="9" y2="21"/><line x1="16" y1="9" x2="23" y2="21"/><line x1="9" y1="21" x2="23" y2="21"/></g><circle cx="16" cy="9" r="3.2" fill="#fff"/><circle cx="9" cy="21" r="3.2" fill="#fff"/><circle cx="23" cy="21" r="3.2" fill="#fff"/></svg>
+            Map Of Nodes
+        </div>
+        <input id="search" type="text" placeholder="Filter by host, moniker, city, ISP, chain..." />
+        <span class="counts" id="counts"></span>
+        <a class="btn btn-secondary" href="nodes.csv" download="nodes.csv" title="Download node data as CSV">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export CSV
+        </a>
+        <a class="btn btn-primary" href="insights.html" title="ISP, WHOIS and regional analysis">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            Insights
+        </a>
+        <button id="themeToggle" class="btn btn-ghost" title="Toggle theme" aria-label="Toggle theme">
+            <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+    </div>
+
     <div id="legend"></div>
     <div id="status"></div>
 
@@ -67,6 +134,27 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="geolocations.js"></script>
     <script>
+        // ---- theme: default to system, overridable, persisted ----
+        (function () {
+            const stored = localStorage.getItem('map-theme');
+            const theme = stored === 'light' || stored === 'dark' ? stored : 'system';
+            document.documentElement.setAttribute('data-theme', theme === 'system' ? '' : theme);
+            const moon = document.getElementById('iconMoon'), sun = document.getElementById('iconSun');
+            const apply = t => {
+                document.documentElement.setAttribute('data-theme', t === 'system' ? '' : t);
+                const dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+                moon.style.display = dark ? 'block' : 'none';
+                sun.style.display = dark ? 'none' : 'block';
+                localStorage.setItem('map-theme', t);
+            };
+            apply(theme);
+            document.getElementById('themeToggle').addEventListener('click', () => {
+                const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark'
+                    : (localStorage.getItem('map-theme') === 'light' ? 'light' : 'system');
+                apply(cur === 'system' ? 'light' : cur === 'light' ? 'dark' : 'system');
+            });
+        })();
+
         const data = window.networkData || { good: [], peers: [], counts: {} };
         const state = { good: true, peers: true, archive: true };
         let activeMarkers = [];
@@ -146,25 +234,24 @@
             const c = data.counts || {};
             const n = v => v ?? 0;
             document.getElementById('counts').innerHTML =
-                `<span><span class="dot" style="background:#1f77ff"></span>RPC <span class="n">${n(c.good)}</span></span>` +
-                `<span><span class="dot" style="background:#2ecc71"></span>Peers <span class="n">${n(c.peers)}</span></span>`;
+                `<span><span class="dot" style="background:var(--good)"></span>RPC <span class="n">${n(c.good)}</span></span>` +
+                `<span><span class="dot" style="background:var(--peer)"></span>Peers <span class="n">${n(c.peers)}</span></span>`;
         }
 
         function buildLegend() {
             const legend = document.getElementById('legend');
             legend.innerHTML = `
-                <label><input type="checkbox" id="tg-good" checked> <span class="dot" style="background:#1f77ff"></span>RPC nodes</label>
-                <label><input type="checkbox" id="tg-archive" checked> <span class="dot" style="background:#7b2ff7"></span>Archive nodes</label>
-                <label><input type="checkbox" id="tg-peers" checked> <span class="dot" style="background:#2ecc71"></span>Peer nodes (no RPC)</label>`;
+                <label><input type="checkbox" id="tg-good" checked> <span class="dot" style="background:var(--good)"></span>RPC nodes</label>
+                <label><input type="checkbox" id="tg-archive" checked> <span class="dot" style="background:var(--archive)"></span>Archive nodes</label>
+                <label><input type="checkbox" id="tg-peers" checked> <span class="dot" style="background:var(--peer)"></span>Peer nodes (no RPC)</label>`;
             document.getElementById('tg-good').addEventListener('change', e => {
-                state.good = e.target.checked;
-                toggleLayer('good', state.good = e.target.checked);
+                state.good = e.target.checked; toggleLayer('good', e.target.checked);
             });
             document.getElementById('tg-archive').addEventListener('change', e => {
                 state.archive = e.target.checked; rebuild();
             });
             document.getElementById('tg-peers').addEventListener('change', e => {
-                state.peers = e.target.checked; toggleLayer('peers', state.peers = e.target.checked);
+                state.peers = e.target.checked; toggleLayer('peers', e.target.checked);
             });
         }
 
@@ -190,7 +277,7 @@
             activeMarkers.forEach(m => {
                 const geo = m.geo || {};
                 const hay = [geo.host, geo.ip, geo.moniker, geo.city, geo.region, geo.country, geo.chain, geo.org,
-                    (geo.whois || {}).org, (geo.whois || {}).netname]
+                    geo.hostname, geo.timezone, (geo.whois || {}).org, (geo.whois || {}).netname]
                     .filter(Boolean).join(' ').toLowerCase();
                 const match = hay.includes(q);
                 m.setOpacity(match ? 1 : 0.15);
