@@ -72,12 +72,6 @@ def main(argv: list[str] | None = None) -> int:
     whois_orgs = Counter((g.get("whois") or {}).get("org") or "(no whois org)" for g in nodes)
     timezones = Counter(g.get("timezone") or "(unknown)" for g in nodes)
     continents = Counter(CONTINENTS.get(c, "Other") for c in countries)
-    hosting = Counter(
-        "hosting" if g.get("hosting") is True else ("not hosting" if g.get("hosting") is False else "unknown")
-        for g in nodes
-    )
-    mobile = sum(1 for g in nodes if g.get("mobile") is True)
-    proxy = sum(1 for g in nodes if g.get("proxy") is True)
     types = Counter(node_type(g) for g in nodes)
 
     # ISP x country cross-tab for the top ISPs
@@ -101,10 +95,6 @@ def main(argv: list[str] | None = None) -> int:
         "isps": len(isps),
         "asns": len([k for k in asns if k]),
         "whoisOrgs": len([k for k in whois_orgs if k and k != "(no whois org)"]),
-        "hostingPct": round(100 * hosting.get("hosting", 0) / max(1, hosting.get("hosting", 0) + hosting.get("not hosting", 0)), 1),
-        "hostingUnknown": hosting.get("unknown", 0),
-        "mobile": mobile,
-        "proxy": proxy,
     }
 
     data = {
@@ -124,8 +114,6 @@ def main(argv: list[str] | None = None) -> int:
                       "values": [v for _, v in whois_orgs.most_common(12)]},
         "timezones": {"labels": [t for t, _ in timezones.most_common(12)],
                       "values": [v for _, v in timezones.most_common(12)]},
-        "hosting": {"labels": list(hosting.keys()), "values": list(hosting.values())},
-        "types": {"labels": list(types.keys()), "values": list(types.values())},
         "table": [
             {
                 "host": g.get("host") or g.get("ip"),
@@ -250,7 +238,6 @@ TEMPLATE = r"""<!DOCTYPE html>
   <div class="panel"><h2>Top ASNs</h2><div class="chart"><canvas id="asns"></canvas></div></div>
   <div class="panel"><h2>WHOIS registrant organizations</h2><div class="chart"><canvas id="whoisOrgs"></canvas></div></div>
   <div class="panel"><h2>Timezone distribution</h2><div class="chart"><canvas id="timezones"></canvas></div></div>
-  <div class="panel"><h2>Node types &amp; hosting flags</h2><div class="chart"><canvas id="types"></canvas></div></div>
 </div>
 
 <div class="grid"><div class="panel" style="grid-column:1/-1">
@@ -292,7 +279,7 @@ const cards = document.getElementById('cards');
 const defs = [
   ['Total nodes', s.total], ['RPC', s.rpc], ['Peers', s.peers],
   ['Countries', s.countries], ['ISPs', s.isps], ['ASNs', s.asns],
-  ['WHOIS orgs', s.whoisOrgs], ['Hosting %', s.hostingPct + '%'],
+  ['WHOIS orgs', s.whoisOrgs],
 ];
 cards.innerHTML = defs.map(([l, n]) =>
   `<div class="card"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
@@ -333,19 +320,6 @@ new Chart(document.getElementById('ispByCountry'), {
     }))
   },
   options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
-});
-
-new Chart(document.getElementById('types'), {
-  type: 'doughnut',
-  data: {
-    labels: [...D.types.labels, ...D.hosting.labels],
-    datasets: [{
-      data: [...D.types.values, ...D.hosting.values],
-      backgroundColor: [...D.types.labels.map(l => l === 'RPC' ? '#1f77ff' : '#2ecc71'),
-        '#e74c3c', '#7b2ff7', '#f39c12']
-    }]
-  },
-  options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
 });
 
 const tbody = document.getElementById('tbody');
