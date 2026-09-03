@@ -70,6 +70,21 @@ Optionally enrich each IP with ip-api datacenter flags (`hosting` / `mobile` /
 python3 geolocate.py --data-dir data --ipapi-enrich
 ```
 
+### Basemap (optional CARTO API key)
+
+The map uses keyless OpenStreetMap tiles by default (dark mode applies a
+night-view filter). To use CARTO basemaps instead, set your API key in
+`config.js` (create it from `config.example.js`; it is git-ignored):
+
+```js
+window.BASEMAP_KEY = "your_carto_basemap_key";
+```
+
+With a key, the map serves CARTO `voyager` (light) / `dark_matter` (dark) tiles.
+CARTO's free tier permits 5M tile requests/month and requires prominent
+attribution to both OpenStreetMap and CARTO. Do not proxy or cache the tiles
+server-side.
+
 ## Per-node data fields
 
 | Field | Meaning |

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Map Of Nodes</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <script src="config.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
@@ -186,12 +187,30 @@
             if (t === 'light') return false;
             return matchMedia('(prefers-color-scheme: dark)').matches;
         };
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 18, attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
-        // Night-view filter: re-render the same tiles dark when the theme is dark.
+
+        // CARTO basemaps when an API key is configured (see config.js); otherwise
+        // keyless OSM tiles with a CSS night-view filter in dark mode.
+        const cartoKey = (window.BASEMAP_KEY || '').trim();
+        const cartoURL = (style, key) =>
+            `https://basemaps.cartocdn.com/rastertiles/${style}/{z}/{x}/{y}{r}.png?key=${key}`;
+        const LIGHT_TILES = cartoKey
+            ? cartoURL('voyager', cartoKey)
+            : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+        const DARK_TILES = cartoKey ? cartoURL('dark_matter', cartoKey) : LIGHT_TILES;
+        const attribution = cartoKey
+            ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            : '&copy; OpenStreetMap contributors';
+
+        let tileLayer = null;
         const applyMapTheme = () => {
-            map.getContainer().classList.toggle('map-dark', isDark());
+            const dark = isDark();
+            if (tileLayer) map.removeLayer(tileLayer);
+            tileLayer = L.tileLayer(dark ? DARK_TILES : LIGHT_TILES, {
+                maxZoom: cartoKey ? 19 : 18,
+                attribution,
+            });
+            tileLayer.addTo(map);
+            map.getContainer().classList.toggle('map-dark', dark && !cartoKey);
         };
         window.__onThemeChange = applyMapTheme;
         applyMapTheme();

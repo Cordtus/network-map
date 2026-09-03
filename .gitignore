@@ -4,6 +4,9 @@ geolocations.js
 nodes.csv
 insights.html
 
+# Local config (secrets: CARTO basemap key)
+config.js
+
 # Build artifacts
 pex/pex_crawler
 __pycache__/

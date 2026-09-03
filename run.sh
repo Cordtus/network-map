@@ -15,6 +15,9 @@ cd "$DIR"
 PORT="${PORT:-8000}"
 DATA_DIR="${DATA_DIR:-$DIR/data}"
 
+# Local basemap config (CARTO key goes here, not in git)
+[ -f config.js ] || cp config.example.js config.js
+
 echo "==> Crawling network"
 python3 crawler.py --data-dir "$DATA_DIR" "$@"
 
