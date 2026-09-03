@@ -96,6 +96,10 @@
         .leaflet-popup-content .meta { color: #555; }
         .leaflet-popup-content a { color: var(--good); }
         .leaflet-container { background: var(--bg); }
+        /* Night-view basemap: darken the standard OSM tiles in dark mode */
+        .map-dark .leaflet-tile {
+            filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+        }
         @media (max-width: 760px) {
             #appbar { flex-wrap: wrap; }
             .counts { order: 3; width: 100%; justify-content: space-between; }
@@ -176,28 +180,21 @@
 
         const map = L.map('map');
 
-        // Dark (night-view) vs light basemap; swap live with the theme.
-        const darkTiles = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-        const lightTiles = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-        let tileLayer = null;
         const isDark = () => {
             const t = document.documentElement.getAttribute('data-theme');
             if (t === 'dark') return true;
             if (t === 'light') return false;
             return matchMedia('(prefers-color-scheme: dark)').matches;
         };
-        const applyTiles = () => {
-            if (tileLayer) map.removeLayer(tileLayer);
-            tileLayer = L.tileLayer(isDark() ? darkTiles : lightTiles, {
-                maxZoom: 18,
-                attribution: isDark()
-                    ? '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/">CARTO</a>'
-                    : '&copy; OpenStreetMap contributors',
-            });
-            tileLayer.addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18, attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+        // Night-view filter: re-render the same tiles dark when the theme is dark.
+        const applyMapTheme = () => {
+            map.getContainer().classList.toggle('map-dark', isDark());
         };
-        window.__onThemeChange = applyTiles;
-        applyTiles();
+        window.__onThemeChange = applyMapTheme;
+        applyMapTheme();
 
         const layers = {
             good: L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 40 }),
