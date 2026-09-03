@@ -195,10 +195,9 @@ TEMPLATE = r"""<!DOCTYPE html>
   .btn-ghost { border-color:transparent; padding:8px 10px; color:var(--muted); }
   .btn-ghost:hover { background:var(--surface-2); color:var(--text); }
 
-  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; padding:22px 24px; }
-  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow); }
-  .card .n { font-size:26px; font-weight:700; }
-  .card .l { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  .stats { display:flex; flex-wrap:wrap; gap:28px; align-items:center; padding:4px 2px; }
+  .stat .n { font-size:24px; font-weight:700; line-height:1.2; }
+  .stat .l { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
 
   .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:16px; padding:0 24px 28px; }
   .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; box-shadow:var(--shadow); }
@@ -228,9 +227,11 @@ TEMPLATE = r"""<!DOCTYPE html>
   </nav>
 </header>
 
-<div class="cards" id="cards"></div>
-
 <div class="grid">
+  <div class="panel" style="grid-column:1/-1">
+    <h2>Overview</h2>
+    <div class="stats" id="stats"></div>
+  </div>
   <div class="panel"><h2>Top ISPs / hosting providers</h2><div class="chart"><canvas id="isps"></canvas></div></div>
   <div class="panel"><h2>Top countries</h2><div class="chart"><canvas id="countries"></canvas></div></div>
   <div class="panel"><h2>ISP distribution by region (top ISPs)</h2><div class="chart"><canvas id="ispByCountry"></canvas></div></div>
@@ -275,14 +276,12 @@ const D = DATA;
 document.getElementById('gen').textContent = 'generated ' + (D.generatedAt || '?');
 
 const s = D.stats;
-const cards = document.getElementById('cards');
 const defs = [
-  ['Total nodes', s.total], ['RPC', s.rpc], ['Peers', s.peers],
-  ['Countries', s.countries], ['ISPs', s.isps], ['ASNs', s.asns],
-  ['WHOIS orgs', s.whoisOrgs],
+  ['Total nodes', s.total], ['Countries', s.countries], ['ISPs', s.isps],
+  ['ASNs', s.asns], ['WHOIS orgs', s.whoisOrgs],
 ];
-cards.innerHTML = defs.map(([l, n]) =>
-  `<div class="card"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+document.getElementById('stats').innerHTML = defs.map(([l, n]) =>
+  `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
 
 const grid = 'transparent';
 Chart.defaults.color = '#8b96ad';
