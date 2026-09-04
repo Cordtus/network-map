@@ -207,42 +207,44 @@ function buildRegions(regions) {
   ];
   const dark = (document.documentElement.getAttribute('data-theme') === 'dark') ||
     (document.documentElement.getAttribute('data-theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-  const sep = dark ? '#141a26' : '#ffffff'; // panel surface, crisply splits slices
-  const inner = { labels: [], data: [], colors: [] };
-  const outer = { labels: [], data: [], colors: [] };
+  const sep = dark ? '#141a26' : '#ffffff'; // panel surface, thin internal dividers
+
+  // One flat doughnut: each continent's section is led by a transparent spacer
+  // slice carrying a 3px border in that continent's color, so the boundary reads
+  // as a clear colored line; countries inside are individually colored slices.
+  const total = regions.reduce((s, r) => s + r.total, 0);
+  const gap = Math.max(2, Math.round(total * 0.01));
+
+  const labels = [], data = [], colors = [], borders = [], widths = [];
+  const spacers = new Set();
+  let ci = 0;
   regions.forEach((r, i) => {
-    inner.labels.push(r.name);
-    inner.data.push(r.total);
-    inner.colors.push(regionColors[i % regionColors.length]);
+    const rc = regionColors[i % regionColors.length];
+    spacers.add(labels.length);
+    labels.push('·'); data.push(gap); colors.push('transparent'); borders.push(rc); widths.push(3);
     r.labels.forEach((c, j) => {
-      outer.labels.push(c);
-      outer.data.push(r.values[j]);
+      labels.push(c); data.push(r.values[j]);
+      colors.push(countryColors[ci % countryColors.length]); ci++;
+      borders.push(sep); widths.push(1);
     });
   });
-  outer.colors = outer.labels.map((_, k) => countryColors[k % countryColors.length]);
+
   new Chart(document.getElementById('regions'), {
     type: 'doughnut',
-    data: {
-      labels: outer.labels,
-      datasets: [
-        { data: inner.data, backgroundColor: inner.colors, borderColor: sep, borderWidth: 2 },
-        { data: outer.data, backgroundColor: outer.colors, borderColor: sep, borderWidth: 2 },
-      ],
-    },
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: borders, borderWidth: widths }] },
     options: {
       maintainAspectRatio: false,
-      cutout: '45%',
-      spacing: 1,
+      cutout: '32%',
       plugins: {
         legend: { display: false },
         tooltip: {
           callbacks: {
             label: (ctx) => {
-              const names = ctx.datasetIndex === 0 ? inner.labels : outer.labels;
+              if (spacers.has(ctx.dataIndex)) return '';
               const v = ctx.parsed || 0;
-              const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
-              const pct = total ? Math.round(100 * v / total) : 0;
-              return ` ${names[ctx.dataIndex]}: ${v} (${pct}%)`;
+              const totalSum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = totalSum ? Math.round(100 * v / totalSum) : 0;
+              return ` ${labels[ctx.dataIndex]}: ${v} (${pct}%)`;
             },
           },
         },
