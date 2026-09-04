@@ -27,6 +27,8 @@ const (
 	roundWait      = 6 * time.Second
 	maxMsgSize     = 256 * 100
 	roundAddrLimit = 64
+	maxPeerQueries = 3               // re-request a peer up to 3 times, then stop it
+	requestGap     = 3 * time.Second // space between re-requests to one peer
 )
 
 type PeerInfo struct {
@@ -54,7 +56,9 @@ type state struct {
 }
 
 // pexClient is a minimal PEX reactor: request addrs from every outbound peer
-// we dial, and hand responses back to the crawl loop.
+// we dial, re-requesting each one up to maxPeerQueries times (spaced by
+// requestGap so no single peer is hammered), and hand responses back to the
+// crawl loop.
 type pexClient struct {
 	p2p.BaseReactor
 	pexCh     chan []tmp2p.NetAddress
@@ -62,6 +66,7 @@ type pexClient struct {
 	networks  map[string]string // peer ID -> observed network
 	connected int
 	mu        sync.Mutex
+	reqs      map[string]int // peer ID -> PexRequests sent so far
 }
 
 func (r *pexClient) GetChannels() []*conn.ChannelDescriptor {
@@ -92,8 +97,17 @@ func (r *pexClient) AddPeer(p p2p.Peer) {
 	r.mu.Unlock()
 	fmt.Printf("    [dial] connected %s net=%q\n", p.RemoteAddr().String(), net)
 	if p.IsOutbound() {
+		r.mu.Lock()
+		r.reqs[string(p.ID())] = 1
+		r.mu.Unlock()
 		_ = p.Send(p2p.Envelope{ChannelID: pexChannel, Message: &tmp2p.PexRequest{}})
 	}
+}
+
+func (r *pexClient) RemovePeer(p p2p.Peer, _ interface{}) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.reqs, string(p.ID()))
 }
 
 func (r *pexClient) Receive(e p2p.Envelope) {
@@ -108,9 +122,47 @@ func (r *pexClient) Receive(e p2p.Envelope) {
 	case r.pexCh <- addrs.Addrs:
 	default:
 	}
-	if r.sw != nil {
-		r.sw.StopPeerGracefully(e.Src)
+	id := string(e.Src.ID())
+	r.mu.Lock()
+	n := r.reqs[id]
+	r.mu.Unlock()
+	if n >= maxPeerQueries {
+		// This peer has been fully queried; drop it so the slot frees up.
+		if r.sw != nil {
+			r.sw.StopPeerGracefully(e.Src)
+		}
+		return
 	}
+	// Re-request this peer after a gap, so its next address sample is drawn
+	// from a different random subset of its address book.
+	peer := e.Src
+	go func(peer p2p.Peer, id string) {
+		time.Sleep(requestGap)
+		if !peer.IsRunning() {
+			return
+		}
+		r.mu.Lock()
+		if r.reqs[id] >= maxPeerQueries {
+			r.mu.Unlock()
+			return
+		}
+		r.reqs[id]++
+		r.mu.Unlock()
+		_ = peer.Send(p2p.Envelope{ChannelID: pexChannel, Message: &tmp2p.PexRequest{}})
+	}(peer, id)
+}
+
+// hasActiveQueries reports whether any connected peer still has outstanding
+// request budget (i.e. the crawl should keep collecting responses).
+func (r *pexClient) hasActiveQueries() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, n := range r.reqs {
+		if n < maxPeerQueries {
+			return true
+		}
+	}
+	return false
 }
 
 func main() {
@@ -126,7 +178,7 @@ func parseFlags() options {
 	flag.StringVar(&o.jsonOut, "json", "", "optional detailed peers JSON output path")
 	flag.StringVar(&o.verify, "verify", "", "verify peers in a pex_peers.json file (dial each, report observed network)")
 	flag.IntVar(&o.time, "time", 180, "max crawl time in seconds")
-	flag.IntVar(&o.depth, "depth", 6, "max BFS depth")
+	flag.IntVar(&o.depth, "depth", 100, "max crawl rounds (safety cap; crawl normally ends when all peers are exhausted)")
 	flag.BoolVar(&o.verbose, "verbose", false, "verbose logging")
 	flag.Parse()
 	return o
@@ -163,66 +215,71 @@ func run(o options) int {
 		return verify(o, sw, rc, deadline)
 	}
 
-	pending := []string{}
+	pending := map[string]bool{}
 	if o.seeds != "" {
 		for _, s := range strings.Split(o.seeds, ",") {
 			s = strings.TrimSpace(s)
 			if s != "" {
-				pending = append(pending, s)
+				pending[s] = true
 			}
 		}
 	}
 
-	curDepth := 0
-	for len(pending) > 0 && time.Now().Before(deadline) && curDepth <= o.depth {
+	rounds := 0
+	for time.Now().Before(deadline) && rounds < o.depth {
 		if o.verbose {
-			fmt.Printf("[%s] depth %d: %d addresses in queue\n",
-				time.Now().Format("15:04:05"), curDepth, len(pending))
+			fmt.Printf("[%s] round %d: %d queued, %d queries\n",
+				time.Now().Format("15:04:05"), rounds, len(pending), st.queries)
 		}
 
-		// Split pending into this round's dial targets (up to roundAddrLimit
-		// unvisited addresses) and the overflow to carry into the next round.
-		// Only round members are marked visited, so overflow is not lost.
-		round := []string{}
-		overflow := []string{}
-		for _, a := range pending {
+		// Take up to roundAddrLimit unvisited addresses to dial this round;
+		// already-visited ones are dropped. Peers are never re-dialed, but each
+		// connected peer is re-requested (see pexClient) for fresh address
+		// samples until it has been queried maxPeerQueries times.
+		batch := []string{}
+		for a := range pending {
 			if st.isVisited(a) {
+				delete(pending, a)
 				continue
 			}
-			if len(round) >= roundAddrLimit {
-				overflow = append(overflow, a)
-			} else {
-				round = append(round, a)
+			batch = append(batch, a)
+			delete(pending, a)
+			if len(batch) >= roundAddrLimit {
+				break
 			}
 		}
-		if len(round) == 0 {
+
+		if len(batch) == 0 && !rc.hasActiveQueries() {
+			// Nothing left to dial and no peer still being queried: all unique
+			// peers have been found and each queried to exhaustion.
 			break
 		}
-		for _, a := range round {
-			st.markVisited(a)
-		}
 
-		// Dial all peers in this round (network validation inside the switch).
-		valid := []string{}
-		for _, a := range round {
-			if _, err := p2p.NewNetAddressString(a); err != nil {
-				if o.verbose {
-					fmt.Printf("  bad seed %q: %v\n", a, err)
+		if len(batch) > 0 {
+			for _, a := range batch {
+				st.markVisited(a)
+			}
+			valid := []string{}
+			for _, a := range batch {
+				if _, err := p2p.NewNetAddressString(a); err != nil {
+					if o.verbose {
+						fmt.Printf("  bad seed %q: %v\n", a, err)
+					}
+					continue
 				}
-				continue
+				valid = append(valid, a)
 			}
-			valid = append(valid, a)
-		}
-		if len(valid) > 0 {
-			if err := sw.DialPeersAsync(valid); err != nil {
-				fmt.Printf("  dial: %v\n", err)
+			if len(valid) > 0 {
+				if err := sw.DialPeersAsync(valid); err != nil {
+					fmt.Printf("  dial: %v\n", err)
+				}
 			}
 		}
 
-		// Collect responses until the round window elapses.
+		// Collect responses until the round window elapses (or we already have
+		// a full batch of fresh peers to dial), expanding `pending`.
 		roundEnd := time.Now().Add(roundWait)
-		next := []string{}
-		nextSeen := map[string]bool{}
+		newQueued := 0
 	collect:
 		for time.Now().Before(roundEnd) {
 			select {
@@ -241,18 +298,19 @@ func run(o options) int {
 					}
 					st.mu.Unlock()
 					addr := fmt.Sprintf("%s@%s:%d", a.ID, a.IP, a.Port)
-					if !nextSeen[addr] {
-						nextSeen[addr] = true
-						next = append(next, addr)
+					if !st.isVisited(addr) {
+						pending[addr] = true
+						newQueued++
 					}
+				}
+				if newQueued >= roundAddrLimit {
+					break collect
 				}
 			case <-time.After(roundEnd.Sub(time.Now())):
 				break collect
 			}
 		}
-
-		pending = append(overflow, next...)
-		curDepth++
+		rounds++
 	}
 
 	// Assemble outputs.
@@ -367,7 +425,7 @@ func buildSwitch(network string) (*p2p.Switch, *pexClient, string, error) {
 	sw := p2p.NewSwitch(p2pCfg, transport, p2p.WithMetrics(p2p.NopMetrics()))
 	sw.SetLogger(log.NewTMLogger(log.NewSyncWriter(os.Stderr)))
 
-	rc := &pexClient{pexCh: make(chan []tmp2p.NetAddress, 256), networks: map[string]string{}}
+	rc := &pexClient{pexCh: make(chan []tmp2p.NetAddress, 1024), networks: map[string]string{}, reqs: map[string]int{}}
 	rc.BaseReactor = *p2p.NewBaseReactor("PEX", rc)
 	rc.SetLogger(log.NewTMLogger(log.NewSyncWriter(os.Stderr)))
 	sw.AddReactor("PEX", rc)
