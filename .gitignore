@@ -2,7 +2,12 @@
 data/
 geolocations.js
 nodes.csv
-insights.html
+
+# Claude scratch / issue-tracker pointer
+.claude/
+
+# Browser-test artifacts
+.playwright-mcp/
 
 # Local config (secrets: CARTO basemap key)
 config.js

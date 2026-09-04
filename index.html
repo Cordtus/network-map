@@ -6,6 +6,7 @@
     <title>Map Of Nodes</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <script src="config.js"></script>
+    <script src="networks.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
@@ -67,6 +68,12 @@
         .btn.ghost { color: var(--muted); }
         .btn.ghost:hover { background: var(--surface-2); color: var(--text); }
         .btn.icon { padding: 0 9px; }
+        #networkSelect {
+            height: 30px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--surface-2); color: var(--text); font-size: 12px; font-weight: 600;
+            cursor: pointer; outline: none;
+        }
+        #networkSelect:hover { border-color: var(--muted); }
 
         /* Map controls sit below the floating app bar */
         .leaflet-top.leaflet-left { top: 68px; }
@@ -80,15 +87,6 @@
         #search:focus { border-color: var(--accent); }
         .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
 
-        #legend {
-            position: absolute; bottom: 24px; left: 12px; z-index: 1000;
-            background: var(--surface); color: var(--text); border: 1px solid var(--border);
-            border-radius: 10px; padding: 10px 12px; box-shadow: var(--shadow); font-size: 12px; line-height: 1.8;
-        }
-        #legend .legend-counts { display: flex; gap: 12px; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 6px; }
-        #legend .legend-counts .n { font-weight: 600; color: var(--text); }
-        #legend label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-        #legend input { accent-color: var(--accent); }
         #status {
             position: absolute; bottom: 24px; right: 12px; z-index: 1000;
             background: var(--surface); color: var(--muted); border: 1px solid var(--border);
@@ -124,23 +122,22 @@
             Map Of Nodes
         </div>
         <nav>
+            <select id="networkSelect" title="Network"></select>
             <div class="tabs">
                 <a class="tab active" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20l-6-6 6-6"/><path d="M15 4l6 6-6 6"/></svg>Map</a>
                 <a class="tab" href="insights.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Insights</a>
             </div>
-            <a class="btn outline" href="nodes.csv" download="nodes.csv" title="Download node data as CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</a>
+            <a class="btn outline" id="csvLink" href="#" download="nodes.csv" title="Download node data as CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</a>
             <button class="btn ghost icon" id="themeToggle" title="Toggle theme"><svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg id="iconSun" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
         </nav>
     </div>
 
     <input id="search" type="text" placeholder="Filter by host, moniker, city, ISP..." />
 
-    <div id="legend"></div>
     <div id="status"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-    <script src="geolocations.js"></script>
     <script>
         // ---- theme: default to system, overridable, persisted ----
         (function () {
@@ -169,8 +166,22 @@
             });
         })();
 
+        const net = window.currentNetwork();
+
+        // ---- network dropdown: switching navigates to ?network=<slug> ----
+        const sel = document.getElementById('networkSelect');
+        window.SUPPORTED_NETWORKS.forEach(n => {
+            const o = document.createElement('option');
+            o.value = n.slug;
+            o.textContent = n.name;
+            o.selected = n.slug === net.slug;
+            sel.appendChild(o);
+        });
+        sel.addEventListener('change', () => { location.search = 'network=' + sel.value; });
+        document.getElementById('csvLink').href = `data/${net.slug}/nodes.csv`;
+
+        function init() {
         const data = window.networkData || { good: [], peers: [], counts: {} };
-        const state = { good: true, peers: true, archive: true };
         let activeMarkers = [];
 
         const icons = {
@@ -199,7 +210,7 @@
         const LIGHT_TILES = cartoKey
             ? cartoURL('voyager', cartoKey)
             : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-        const DARK_TILES = cartoKey ? cartoURL('dark_matter', cartoKey) : LIGHT_TILES;
+        const DARK_TILES = cartoKey ? cartoURL('dark_all', cartoKey) : LIGHT_TILES;
         const attribution = cartoKey
             ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
             : '&copy; OpenStreetMap contributors';
@@ -267,53 +278,8 @@
             layers.good.clearLayers();
             layers.peers.clearLayers();
             activeMarkers = [];
-            for (const geo of data.good || []) {
-                if (geo.archive && !state.archive) continue;
-                addMarker(geo, layers.good, geo.archive ? icons.archive : icons.good);
-            }
+            for (const geo of data.good || []) addMarker(geo, layers.good, geo.archive ? icons.archive : icons.good);
             for (const geo of data.peers || []) addMarker(geo, layers.peers, icons.peer);
-            renderCounts();
-        }
-
-        function renderCounts() {
-            const c = data.counts || {};
-            const n = v => v ?? 0;
-            const el = document.getElementById('legend-counts');
-            if (el) el.innerHTML =
-                `<span><span class="dot" style="background:var(--good)"></span>RPC <span class="n">${n(c.good)}</span></span>` +
-                `<span><span class="dot" style="background:var(--peer)"></span>Peers <span class="n">${n(c.peers)}</span></span>`;
-        }
-
-        function buildLegend() {
-            const legend = document.getElementById('legend');
-            legend.innerHTML = `
-                <div class="legend-counts" id="legend-counts"></div>
-                <label><input type="checkbox" id="tg-good" checked> <span class="dot" style="background:var(--good)"></span>RPC nodes</label>
-                <label><input type="checkbox" id="tg-archive" checked> <span class="dot" style="background:var(--archive)"></span>Archive nodes</label>
-                <label><input type="checkbox" id="tg-peers" checked> <span class="dot" style="background:var(--peer)"></span>Peer nodes (no RPC)</label>`;
-            document.getElementById('tg-good').addEventListener('change', e => {
-                state.good = e.target.checked; toggleLayer('good', e.target.checked);
-            });
-            document.getElementById('tg-archive').addEventListener('change', e => {
-                state.archive = e.target.checked; rebuild();
-            });
-            document.getElementById('tg-peers').addEventListener('change', e => {
-                state.peers = e.target.checked; toggleLayer('peers', e.target.checked);
-            });
-        }
-
-        function toggleLayer(name, on) {
-            if (on && !map.hasLayer(layers[name])) map.addLayer(layers[name]);
-            if (!on && map.hasLayer(layers[name])) map.removeLayer(layers[name]);
-        }
-
-        function rebuild() {
-            layers.good.clearLayers();
-            for (const geo of data.good || []) {
-                if (geo.archive && !state.archive) continue;
-                addMarker(geo, layers.good, geo.archive ? icons.archive : icons.good);
-            }
-            renderCounts();
         }
 
         function applyFilter(q) {
@@ -335,13 +301,21 @@
 
         document.getElementById('search').addEventListener('input', e => applyFilter(e.target.value));
 
-        buildLegend();
         build();
         const all = activeMarkers;
         if (all.length) map.fitBounds(L.latLngBounds(all.map(m => m.getLatLng())).pad(0.15));
         else map.setView([20, 0], 2);
         document.getElementById('status').textContent =
             `generated ${data.generatedAt || '?'}${data.chainId ? ' · ' + data.chainId : ''}`;
+        }
+
+        const dataScript = document.createElement('script');
+        dataScript.src = `data/${net.slug}/geolocations.js`;
+        dataScript.onload = init;
+        dataScript.onerror = () => {
+            document.getElementById('status').textContent = `no data for ${net.name}`;
+        };
+        document.head.appendChild(dataScript);
     </script>
 </body>
 </html>

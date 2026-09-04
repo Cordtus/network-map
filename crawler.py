@@ -896,7 +896,7 @@ class Crawler:
             if endpoint not in per_chain["rpc"]:
                 per_chain["rpc"].append(endpoint)
 
-            if res.get("depth", 0) < self.cfg.depth and info.get("fresh"):
+            if res.get("depth", 0) < self.cfg.depth and (info.get("fresh") or not self.pex_seeds):
                 peers, advertised, ports, pex_seeds = self.fetch_peers(endpoint)
                 res["peers"] = peers
                 res["rpc_combos"] = advertised

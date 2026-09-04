@@ -1,9 +1,19 @@
 # Network Map
 
-Crawl a CometBFT / Cosmos-SDK network from a single endpoint, geolocate every
-node (with ISP + WHOIS), and plot it on a map with an insights dashboard.
+Crawl CometBFT / Cosmos-SDK networks from a single endpoint, geolocate every
+node (with ISP + WHOIS), and plot them on a map with an insights dashboard.
+A dropdown in the header switches between supported networks.
 
 Live deployment: https://netmap.basementnodes.ca
+
+## Supported networks
+
+Defined in `networks.js`. Each network keeps its own data in `data/<slug>/`.
+
+| Network | Slug | Chain-id |
+|---|---|---|
+| Secret Network | `secretnetwork` | `secret-4` |
+| Nomic | `nomic` | `nomic-stakenet-3` |
 
 ## What it does
 
@@ -22,24 +32,29 @@ Live deployment: https://netmap.basementnodes.ca
 ## Quick start
 
 ```bash
-./run.sh --seed https://rpc.secretnetwork.pathrocknetwork.org
+./run.sh --network secretnetwork
+./run.sh --network nomic
 ```
 
-That single endpoint seeds the crawl, chain-id is auto-detected (`secret-4`),
-the peer network is expanded over P2P/PEX, everything is geolocated + enriched,
-and a local server opens the map and insights at http://127.0.0.1:8000.
-
-Seeds from the chain registry too:
+`--network <slug>` selects the network (default: the first `--chain` given,
+else `secretnetwork`) and runs the whole pipeline into `data/<slug>/`. The
+chain-id is auto-detected from the live network; if you pass `--chain`, the
+chain-registry name is used (it usually matches the slug):
 
 ```bash
-./run.sh --chain secretnetwork
+./run.sh --network nomic --chain nomic --deep --workers 80 --time 600
+```
+
+Seed from a single endpoint instead (chain-id auto-detected):
+
+```bash
+./run.sh --network secretnetwork --seed https://rpc.secretnetwork.pathrocknetwork.org
 ```
 
 More options (deep port scan, workers, time, ...):
 
 ```bash
 python3 crawler.py --help
-./run.sh --chain secretnetwork --deep --workers 80 --time 600
 ```
 
 ## Requirements
@@ -67,8 +82,22 @@ Optionally enrich each IP with ip-api datacenter flags (`hosting` / `mobile` /
 `proxy`) — opt-in, rate-limited to ~45/min so a full network takes a while:
 
 ```bash
-python3 geolocate.py --data-dir data --ipapi-enrich
+python3 geolocate.py --data-dir data/nomic --ipapi-enrich
 ```
+
+## Web data layout
+
+Each network's web assets live in its own data dir, so the dropdown can switch
+without server-side logic:
+
+| File | Contents |
+|---|---|
+| `data/<slug>/geolocations.js` | map data (loaded by `index.html`) |
+| `data/<slug>/insights.json` | insights data (fetched by `insights.html`) |
+| `data/<slug>/nodes.csv` | full flat export |
+
+Open `index.html?network=<slug>` (or `insights.html?network=<slug>`) to view a
+specific network; the header dropdown navigates between them.
 
 ### Basemap (optional CARTO API key)
 
@@ -80,7 +109,7 @@ night-view filter). To use CARTO basemaps instead, set your API key in
 window.BASEMAP_KEY = "your_carto_basemap_key";
 ```
 
-With a key, the map serves CARTO `voyager` (light) / `dark_matter` (dark) tiles.
+With a key, the map serves CARTO `voyager` (light) / `dark_all` (dark) tiles.
 CARTO's free tier permits 5M tile requests/month and requires prominent
 attribution to both OpenStreetMap and CARTO. Do not proxy or cache the tiles
 server-side.
@@ -102,21 +131,25 @@ server-side.
 
 ## Outputs
 
+Per network under `data/<slug>/`:
+
 | File | Contents |
 |---|---|
-| `data/peer_ips.json` | all discovered node IPs |
-| `data/good_ips.json` | hosts that expose RPC |
-| `data/nodes.json` | node metadata (moniker, archive, endpoints) |
-| `data/all_nodes.json` | geo + ISP + WHOIS + flags per node |
+| `peer_ips.json` | all discovered node IPs |
+| `good_ips.json` | hosts that expose RPC |
+| `nodes.json` | node metadata (moniker, archive, endpoints) |
+| `all_nodes.json` | geo + ISP + WHOIS + flags per node |
 | `nodes.csv` | full flat export (host, geo, timezone, ASN, ISP, WHOIS, ...) |
 | `geolocations.js` | map data (loaded by `index.html`) |
-| `insights.html` | ISP / regional / WHOIS / timezone dashboards |
+| `insights.json` | insights data (fetched by `insights.html`) |
 
 ## Layout
 
 - `crawler.py` — RPC crawler + port probing + chain-registry seeding
 - `pex/main.go` — P2P/PEX peer-gossip crawler (Go, uses CometBFT)
 - `geolocate.py` — geolocation + WHOIS + enrichment (cached)
-- `analyze.py` — analysis dashboard generator
+- `analyze.py` — insights data generator
+- `networks.js` — supported network registry (drives the header dropdown)
 - `index.html` — Leaflet map
+- `insights.html` — ISP / regional / WHOIS / timezone dashboards
 - `run.sh` — end-to-end pipeline + local server

@@ -507,10 +507,10 @@ class GeoLocator:
             + ";\n"
             + "var goodGeolocations = networkData.good;\n"
         )
-        (data_dir.parent / "geolocations.js").write_text(js)
+        (data_dir / "geolocations.js").write_text(js)
 
         # Emit CSV export
-        self._write_csv(good_geo + peer_geo, data_dir.parent / "nodes.csv")
+        self._write_csv(good_geo + peer_geo, data_dir / "nodes.csv")
 
         # Emit full node dataset (geo + isp + whois) for analysis/mapping
         (data_dir / "all_nodes.json").write_text(
@@ -575,6 +575,7 @@ class GeoLocator:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Geolocate crawled node hosts and emit map data")
     p.add_argument("--data-dir", default=None, help="Crawler data dir (default <script_dir>/data)")
+    p.add_argument("--network", default=None, help="Network slug for output paths (default from data-dir basename)")
     p.add_argument("--ipinfo-token", default=None, help="ipinfo.io access token (default: env IPINFO_TOKEN or bundled)")
     p.add_argument("--workers", type=int, default=20, help="Concurrent lookups (default 20)")
     p.add_argument("--force", action="store_true", help="Ignore the geo cache and re-lookup everything")
@@ -594,6 +595,8 @@ def main(argv: list[str] | None = None) -> int:
         log = lambda msg, level="INFO": None  # noqa: E731
     if args.data_dir is None:
         args.data_dir = str(Path(__file__).resolve().parent / "data")
+    if args.network is None:
+        args.network = Path(args.data_dir).name
     args.ipinfo_token = args.ipinfo_token or os_env_token() or DEFAULT_IPINFO_TOKEN
     return GeoLocator(args).run()
 
