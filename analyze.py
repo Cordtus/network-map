@@ -32,6 +32,7 @@ CONTINENTS = {
     "ZA": "Africa", "NG": "Africa", "KE": "Africa", "EG": "Africa", "GH": "Africa",
     "NZ": "Oceania", "VI": "North America", "SC": "Africa", "KY": "North America",
     "MC": "Europe", "IM": "Europe", "JE": "Europe", "LU": "Europe", "MT": "Europe",
+    "CN": "Asia", "MU": "Africa", "IS": "Europe",
 }
 
 
@@ -70,24 +71,23 @@ def main(argv: list[str] | None = None) -> int:
         return "RPC" if g.get("rpc") else "peer"
 
     countries = Counter(g.get("countryCode") or g.get("country") or "?" for g in nodes)
-    isps = Counter(provider_name(g.get("org")) for g in nodes)
-    whois_orgs = Counter((g.get("whois") or {}).get("org") or "(no whois org)" for g in nodes)
+    isps = Counter(p for g in nodes if (p := provider_name(g.get("org"))) != "(unknown)")
     timezones = Counter(g.get("timezone") or "(unknown)" for g in nodes)
-    continents = Counter(CONTINENTS.get(c, "Other") for c in countries)
     types = Counter(node_type(g) for g in nodes)
 
-    # ISP x country cross-tab for the top ISPs
-    top_isps = [name for name, _ in isps.most_common(6)]
-    top_countries = [c for c, _ in countries.most_common(6)]
-    isp_by_country = {}
-    for isp in top_isps:
-        cc = Counter()
-        for g in nodes:
-            if provider_name(g.get("org")) == isp:
-                cc[g.get("countryCode") or g.get("country") or "?"] += 1
-        isp_by_country[isp] = {
-            c: cc.get(c, 0) for c in top_countries
-        } | {"Other": sum(v for k, v in cc.items() if k not in top_countries)}
+    # Country breakdown within each region (continent), for the region drill-down.
+    region_countries: dict[str, Counter] = {}
+    for c, n in countries.items():
+        region_countries.setdefault(CONTINENTS.get(c, "Other"), Counter())[c] += n
+    regions = []
+    for region, cc in sorted(region_countries.items(), key=lambda kv: -sum(kv[1].values())):
+        items = cc.most_common()
+        regions.append({
+            "name": region,
+            "total": sum(cc.values()),
+            "labels": [c for c, _ in items],
+            "values": [v for _, v in items],
+        })
 
     stats = {
         "total": len(nodes),
@@ -95,7 +95,6 @@ def main(argv: list[str] | None = None) -> int:
         "peers": types.get("peer", 0),
         "countries": len(countries),
         "isps": len(isps),
-        "whoisOrgs": len([k for k in whois_orgs if k and k != "(no whois org)"]),
     }
 
     data = {
@@ -104,14 +103,9 @@ def main(argv: list[str] | None = None) -> int:
         "stats": stats,
         "countries": {"labels": [c for c, _ in countries.most_common(15)],
                       "values": [v for _, v in countries.most_common(15)]},
-        "continents": {"labels": [c for c, _ in continents.most_common()],
-                       "values": [v for _, v in continents.most_common()]},
         "isps": {"labels": [i for i, _ in isps.most_common(15)],
                  "values": [v for _, v in isps.most_common(15)]},
-        "ispByCountry": {"isps": top_isps, "countries": top_countries + ["Other"],
-                         "rows": {i: [isp_by_country[i][c] for c in top_countries + ["Other"]] for i in top_isps}},
-        "whoisOrgs": {"labels": [w for w, _ in whois_orgs.most_common(12)],
-                      "values": [v for _, v in whois_orgs.most_common(12)]},
+        "regions": regions,
         "timezones": {"labels": [t for t, _ in timezones.most_common(12)],
                       "values": [v for _, v in timezones.most_common(12)]},
         "table": [

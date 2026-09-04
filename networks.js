@@ -11,6 +11,13 @@ window.findNetwork = function (slug) {
     return window.SUPPORTED_NETWORKS.find(n => n.slug === slug) || null;
 };
 
+// Strip the leading ASN from a geolocation org string ("AS16276 OVH SAS" -> "OVH SAS").
+window.providerName = function (org) {
+    if (!org) return null;
+    const s = String(org).trim();
+    return /^AS\d+\s+/.test(s) ? s.replace(/^AS\d+\s+/, "") : s;
+};
+
 // Current network: ?network= param wins, else the persisted selection, else
 // the first supported network. The param is persisted for later visits.
 window.currentNetwork = function () {

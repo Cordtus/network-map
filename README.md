@@ -26,8 +26,8 @@ Defined in `networks.js`. Each network keeps its own data in `data/<slug>/`.
    its peer address book. This reveals the full network even when nodes hide RPC.
 3. **Geolocate** (`geolocate.py`) — ipinfo.io primary, ip-api.com fallback, RDAP
    WHOIS per IP. Cached on disk.
-4. **Analyze** (`analyze.py`) — ISP / regional / ASN / WHOIS / timezone /
-   hosting distribution dashboard.
+4. **Analyze** (`analyze.py`) — ISP / country / region / timezone
+   distribution dashboard.
 5. **Serve** — a local static server with the Leaflet map and the dashboards.
 
 ## Quick start
@@ -152,5 +152,5 @@ Per network under `data/<slug>/`:
 - `analyze.py` — insights data generator
 - `networks.js` — supported network registry (drives the header dropdown)
 - `index.html` — Leaflet map
-- `insights.html` — ISP / regional / WHOIS / timezone dashboards
+- `insights.html` — ISP / country / region / timezone dashboards
 - `run.sh` — end-to-end pipeline + local server

@@ -514,7 +514,7 @@ class GeoLocator:
 
         # Emit full node dataset (geo + isp + whois) for analysis/mapping
         (data_dir / "all_nodes.json").write_text(
-            json.dumps({"good": good_geo, "peers": peer_geo}, indent=2)
+            json.dumps({"generatedAt": out["generatedAt"], "good": good_geo, "peers": peer_geo}, indent=2)
         )
 
         # Emit enriched node records
