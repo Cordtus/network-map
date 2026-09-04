@@ -14,6 +14,7 @@ Defined in `networks.js`. Each network keeps its own data in `data/<slug>/`.
 |---|---|---|
 | Secret Network | `secretnetwork` | `secret-4` |
 | Nomic | `nomic` | `nomic-stakenet-3` |
+| GenesisL1 | `genesisl1` | `genesis_29-2` |
 
 ## What it does
 

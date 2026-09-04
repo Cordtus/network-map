@@ -4,14 +4,42 @@
 window.SUPPORTED_NETWORKS = [
     { slug: "secretnetwork", name: "Secret Network", chainName: "secretnetwork" },
     { slug: "nomic", name: "Nomic", chainName: "nomic" },
+    { slug: "genesisl1", name: "GenesisL1", chainName: "genesisl1" },
 ];
 
 window.findNetwork = function (slug) {
     return window.SUPPORTED_NETWORKS.find(n => n.slug === slug) || null;
 };
 
-// Current network from the ?network= query param (default: first supported).
+// Current network: ?network= param wins, else the persisted selection, else
+// the first supported network. The param is persisted for later visits.
 window.currentNetwork = function () {
-    const slug = new URLSearchParams(location.search).get("network");
-    return window.findNetwork(slug) || window.SUPPORTED_NETWORKS[0];
+    const param = new URLSearchParams(location.search).get("network");
+    const fromParam = param && window.findNetwork(param);
+    if (fromParam) {
+        localStorage.setItem("map-network", fromParam.slug);
+        return fromParam;
+    }
+    return window.findNetwork(localStorage.getItem("map-network")) || window.SUPPORTED_NETWORKS[0];
+};
+
+// Persist a network selection and navigate to it.
+window.setNetwork = function (slug) {
+    const n = window.findNetwork(slug);
+    if (!n) return;
+    localStorage.setItem("map-network", n.slug);
+    const url = new URL(location.href);
+    url.searchParams.set("network", n.slug);
+    location.href = url.href;
+};
+
+// Make the Map/Insights tab links carry the current network so switching pages
+// keeps the selection.
+window.bindNetworkTabs = function (net) {
+    document.querySelectorAll("a.tab").forEach(a => {
+        const href = a.getAttribute("href") || "";
+        if (/\.html$/.test(href)) {
+            a.href = href.split("?")[0] + "?network=" + net.slug;
+        }
+    });
 };

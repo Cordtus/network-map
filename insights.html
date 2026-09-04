@@ -155,6 +155,7 @@
 })();
 
 const net = window.currentNetwork();
+window.bindNetworkTabs(net);
 
 // ---- network dropdown: switching navigates to ?network=<slug> ----
 const sel = document.getElementById('networkSelect');
@@ -165,7 +166,7 @@ window.SUPPORTED_NETWORKS.forEach(n => {
   o.selected = n.slug === net.slug;
   sel.appendChild(o);
 });
-sel.addEventListener('change', () => { location.search = 'network=' + sel.value; });
+sel.addEventListener('change', () => { window.setNetwork(sel.value); });
 document.getElementById('csvLink').href = `data/${net.slug}/nodes.csv`;
 
 function esc(x) { return String(x ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
