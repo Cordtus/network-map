@@ -89,11 +89,10 @@
   .page-meta { text-align: center; color: var(--muted); font-size: 11px; padding: 0 0 18px; }
   @media (max-width:760px) { .nodes-stats { top: 112px; left: 12px; } }
 
-  .region-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 12px; font-size: 11px; color: var(--muted); }
-  .region-legend .rl { display: inline-flex; align-items: center; gap: 5px; }
-  .region-legend .rl i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
-  .region-legend .rl b { color: var(--text); font-variant-numeric: tabular-nums; }
-  .region-hint { font-size: 10px; color: var(--muted); margin-top: 6px; }
+  .country-legend { display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 10px; font-size: 10px; color: var(--muted); }
+  .country-legend .cl { display: inline-flex; align-items: center; gap: 4px; }
+  .country-legend .cl i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+  .country-legend .cl b { color: var(--text); font-variant-numeric: tabular-nums; }
 
   .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:16px; padding:24px 28px 36px; }
   .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; box-shadow:var(--shadow); }
@@ -135,8 +134,7 @@
   <div class="panel"><h2>Top ISPs / hosting providers</h2><div class="chart"><canvas id="isps"></canvas></div></div>
   <div class="panel"><h2>Top countries</h2><div class="chart"><canvas id="countries"></canvas></div></div>
   <div class="panel"><h2>Region</h2><div class="chart"><canvas id="regions"></canvas></div>
-    <div class="region-legend" id="regionLegend"></div>
-    <div class="region-hint">inner ring: region · outer ring: countries</div>
+    <div class="country-legend" id="countryLegend"></div>
   </div>
   <div class="panel"><h2>Timezone distribution</h2><div class="chart"><canvas id="timezones"></canvas></div></div>
 </div>
@@ -198,61 +196,55 @@ function bar(id, labels, values, color, horizontal) {
 }
 
 function buildRegions(regions) {
-  const regionColors = ['#1f77ff','#2ecc71','#e74c3c','#f39c12','#7b2ff7','#00bcd4','#e91e63','#16a085','#8e44ad'];
-  // Broad categorical palette so each country slice reads as its own color.
-  const countryColors = [
+  // One horizontal bar per continent, stacked with a distinct color per country.
+  const palette = [
     '#4e79a7','#f28e2c','#e15759','#76b7b2','#59a14f','#edc949','#af7aa1','#ff9da7','#9c755f','#bab0ab',
     '#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#bcbd22','#17becf','#393b79',
     '#637939','#843c39','#8c6d31','#7b4173','#aec7e8','#c49c94','#98df8a','#ffbb78',
   ];
-  const dark = (document.documentElement.getAttribute('data-theme') === 'dark') ||
-    (document.documentElement.getAttribute('data-theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-  const sep = dark ? '#141a26' : '#ffffff'; // panel surface, thin internal dividers
-
-  // One flat doughnut: each continent's section is led by a transparent spacer
-  // slice carrying a 3px border in that continent's color, so the boundary reads
-  // as a clear colored line; countries inside are individually colored slices.
-  const total = regions.reduce((s, r) => s + r.total, 0);
-  const gap = Math.max(2, Math.round(total * 0.01));
-
-  const labels = [], data = [], colors = [], borders = [], widths = [];
-  const spacers = new Set();
-  let ci = 0;
-  regions.forEach((r, i) => {
-    const rc = regionColors[i % regionColors.length];
-    spacers.add(labels.length);
-    labels.push('·'); data.push(gap); colors.push('transparent'); borders.push(rc); widths.push(3);
+  const names = regions.map(r => r.name);
+  const byCountry = new Map();
+  let offset = 0;
+  regions.forEach(r => {
     r.labels.forEach((c, j) => {
-      labels.push(c); data.push(r.values[j]);
-      colors.push(countryColors[ci % countryColors.length]); ci++;
-      borders.push(sep); widths.push(1);
+      if (!byCountry.has(c)) byCountry.set(c, { vals: new Array(regions.length).fill(0), color: palette[(offset + j) % palette.length] });
+      byCountry.get(c).vals[names.indexOf(r.name)] = r.values[j];
     });
+    offset += r.labels.length;
   });
-
+  const datasets = [...byCountry.entries()].map(([c, d]) => ({
+    label: c,
+    data: d.vals,
+    backgroundColor: d.color,
+    borderWidth: 0,
+  }));
   new Chart(document.getElementById('regions'), {
-    type: 'doughnut',
-    data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: borders, borderWidth: widths }] },
+    type: 'bar',
+    data: { labels: names, datasets },
     options: {
+      indexAxis: 'y',
       maintainAspectRatio: false,
-      cutout: '32%',
+      scales: {
+        x: { stacked: true, grid: { color: 'rgba(128,128,128,.12)' } },
+        y: { stacked: true, grid: { display: false } },
+      },
       plugins: {
         legend: { display: false },
         tooltip: {
           callbacks: {
             label: (ctx) => {
-              if (spacers.has(ctx.dataIndex)) return '';
-              const v = ctx.parsed || 0;
-              const totalSum = ctx.dataset.data.reduce((a, b) => a + b, 0);
-              const pct = totalSum ? Math.round(100 * v / totalSum) : 0;
-              return ` ${labels[ctx.dataIndex]}: ${v} (${pct}%)`;
+              const v = ctx.parsed.x || 0;
+              const cont = regions[ctx.dataIndex] || {};
+              const pct = cont.total ? Math.round(100 * v / cont.total) : 0;
+              return ` ${ctx.dataset.label}: ${v} (${pct}% of ${cont.name})`;
             },
           },
         },
       },
     },
   });
-  document.getElementById('regionLegend').innerHTML = regions.map((r, i) =>
-    `<span class="rl"><i style="background:${regionColors[i % regionColors.length]}"></i>${esc(r.name)} <b>${r.total}</b></span>`).join('');
+  document.getElementById('countryLegend').innerHTML = [...byCountry.entries()].map(([c, d]) =>
+    `<span class="cl"><i style="background:${d.color}"></i>${esc(c)}</span>`).join('');
 }
 
 function render(D) {
