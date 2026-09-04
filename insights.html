@@ -199,30 +199,40 @@ function bar(id, labels, values, color, horizontal) {
 
 function buildRegions(regions) {
   const regionColors = ['#1f77ff','#2ecc71','#e74c3c','#f39c12','#7b2ff7','#00bcd4','#e91e63','#16a085','#8e44ad'];
-  const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; };
+  // Broad categorical palette so each country slice reads as its own color.
+  const countryColors = [
+    '#4e79a7','#f28e2c','#e15759','#76b7b2','#59a14f','#edc949','#af7aa1','#ff9da7','#9c755f','#bab0ab',
+    '#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#bcbd22','#17becf','#393b79',
+    '#637939','#843c39','#8c6d31','#7b4173','#aec7e8','#c49c94','#98df8a','#ffbb78',
+  ];
+  const dark = (document.documentElement.getAttribute('data-theme') === 'dark') ||
+    (document.documentElement.getAttribute('data-theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+  const sep = dark ? '#141a26' : '#ffffff'; // panel surface, crisply splits slices
   const inner = { labels: [], data: [], colors: [] };
-  const outer = { labels: [], data: [], colors: [], borders: [] };
+  const outer = { labels: [], data: [], colors: [] };
   regions.forEach((r, i) => {
-    const base = regionColors[i % regionColors.length];
-    inner.labels.push(r.name); inner.data.push(r.total); inner.colors.push(base);
+    inner.labels.push(r.name);
+    inner.data.push(r.total);
+    inner.colors.push(regionColors[i % regionColors.length]);
     r.labels.forEach((c, j) => {
-      outer.labels.push(c); outer.data.push(r.values[j]);
-      outer.colors.push(rgba(base, 1 - 0.22 * (j % 3)));
-      outer.borders.push(base);
+      outer.labels.push(c);
+      outer.data.push(r.values[j]);
     });
   });
+  outer.colors = outer.labels.map((_, k) => countryColors[k % countryColors.length]);
   new Chart(document.getElementById('regions'), {
     type: 'doughnut',
     data: {
       labels: outer.labels,
       datasets: [
-        { data: inner.data, backgroundColor: inner.colors, borderWidth: 0 },
-        { data: outer.data, backgroundColor: outer.colors, borderColor: outer.borders, borderWidth: 1 },
+        { data: inner.data, backgroundColor: inner.colors, borderColor: sep, borderWidth: 2 },
+        { data: outer.data, backgroundColor: outer.colors, borderColor: sep, borderWidth: 2 },
       ],
     },
     options: {
       maintainAspectRatio: false,
-      cutout: '40%',
+      cutout: '45%',
+      spacing: 1,
       plugins: {
         legend: { display: false },
         tooltip: {
