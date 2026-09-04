@@ -180,18 +180,26 @@ func run(o options) int {
 				time.Now().Format("15:04:05"), curDepth, len(pending))
 		}
 
-		// Dedupe and filter already-visited addresses.
+		// Split pending into this round's dial targets (up to roundAddrLimit
+		// unvisited addresses) and the overflow to carry into the next round.
+		// Only round members are marked visited, so overflow is not lost.
 		round := []string{}
+		overflow := []string{}
 		for _, a := range pending {
-			if st.markVisited(a) {
+			if st.isVisited(a) {
+				continue
+			}
+			if len(round) >= roundAddrLimit {
+				overflow = append(overflow, a)
+			} else {
 				round = append(round, a)
 			}
 		}
 		if len(round) == 0 {
 			break
 		}
-		if len(round) > roundAddrLimit {
-			round = round[:roundAddrLimit]
+		for _, a := range round {
+			st.markVisited(a)
 		}
 
 		// Dial all peers in this round (network validation inside the switch).
@@ -243,7 +251,7 @@ func run(o options) int {
 			}
 		}
 
-		pending = next
+		pending = append(overflow, next...)
 		curDepth++
 	}
 
@@ -371,6 +379,12 @@ func buildSwitch(network string) (*p2p.Switch, *pexClient, string, error) {
 		network = "<learned>"
 	}
 	return sw, rc, network, nil
+}
+
+func (st *state) isVisited(key string) bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.visited[key]
 }
 
 func (st *state) markVisited(key string) bool {

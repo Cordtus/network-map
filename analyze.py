@@ -71,7 +71,6 @@ def main(argv: list[str] | None = None) -> int:
 
     countries = Counter(g.get("countryCode") or g.get("country") or "?" for g in nodes)
     isps = Counter(provider_name(g.get("org")) for g in nodes)
-    asns = Counter((g.get("asn") or "").strip() for g in nodes)
     whois_orgs = Counter((g.get("whois") or {}).get("org") or "(no whois org)" for g in nodes)
     timezones = Counter(g.get("timezone") or "(unknown)" for g in nodes)
     continents = Counter(CONTINENTS.get(c, "Other") for c in countries)
@@ -96,7 +95,6 @@ def main(argv: list[str] | None = None) -> int:
         "peers": types.get("peer", 0),
         "countries": len(countries),
         "isps": len(isps),
-        "asns": len([k for k in asns if k]),
         "whoisOrgs": len([k for k in whois_orgs if k and k != "(no whois org)"]),
     }
 
@@ -112,8 +110,6 @@ def main(argv: list[str] | None = None) -> int:
                  "values": [v for _, v in isps.most_common(15)]},
         "ispByCountry": {"isps": top_isps, "countries": top_countries + ["Other"],
                          "rows": {i: [isp_by_country[i][c] for c in top_countries + ["Other"]] for i in top_isps}},
-        "asns": {"labels": [a for a, _ in asns.most_common(12)],
-                 "values": [v for _, v in asns.most_common(12)]},
         "whoisOrgs": {"labels": [w for w, _ in whois_orgs.most_common(12)],
                       "values": [v for _, v in whois_orgs.most_common(12)]},
         "timezones": {"labels": [t for t, _ in timezones.most_common(12)],

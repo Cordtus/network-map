@@ -120,7 +120,6 @@
   <div class="panel"><h2>Top countries</h2><div class="chart"><canvas id="countries"></canvas></div></div>
   <div class="panel"><h2>ISP distribution by region (top ISPs)</h2><div class="chart"><canvas id="ispByCountry"></canvas></div></div>
   <div class="panel"><h2>Continents</h2><div class="chart"><canvas id="continents"></canvas></div></div>
-  <div class="panel"><h2>Top ASNs</h2><div class="chart"><canvas id="asns"></canvas></div></div>
   <div class="panel"><h2>WHOIS registrant organizations</h2><div class="chart"><canvas id="whoisOrgs"></canvas></div></div>
   <div class="panel"><h2>Timezone distribution</h2><div class="chart"><canvas id="timezones"></canvas></div></div>
 </div>
@@ -183,7 +182,7 @@ function render(D) {
   const s = D.stats;
   const defs = [
     ['Total nodes', s.total], ['Countries', s.countries], ['ISPs', s.isps],
-    ['ASNs', s.asns], ['WHOIS orgs', s.whoisOrgs],
+    ['WHOIS orgs', s.whoisOrgs],
   ];
   document.getElementById('stats').innerHTML = defs.map(([l, n]) =>
     `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
@@ -199,7 +198,6 @@ function render(D) {
 
   bar('isps', D.isps.labels, D.isps.values, 'rgba(31,119,255,.75)', true);
   bar('countries', D.countries.labels, D.countries.values, 'rgba(46,204,113,.7)', true);
-  bar('asns', D.asns.labels, D.asns.values, 'rgba(123,47,247,.7)', true);
   bar('whoisOrgs', D.whoisOrgs.labels, D.whoisOrgs.values, 'rgba(231,76,60,.65)', true);
   bar('timezones', D.timezones.labels, D.timezones.values, 'rgba(241,196,15,.7)', true);
 
