@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/crypto"
@@ -23,12 +25,14 @@ import (
 )
 
 const (
-	pexChannel     = byte(0x00)
-	roundWait      = 6 * time.Second
-	maxMsgSize     = 256 * 100
-	roundAddrLimit = 64
-	maxPeerQueries = 3               // re-request a peer up to 3 times, then stop it
-	requestGap     = 3 * time.Second // space between re-requests to one peer
+	pexChannel      = byte(0x00)
+	roundWait       = 6 * time.Second
+	maxMsgSize      = 256 * 100
+	roundAddrLimit  = 64
+	maxPeerQueries  = 3               // re-request a peer up to 3 times, then stop it
+	requestGap      = 3 * time.Second // space between re-requests to one peer
+	maxDialAttempts = 2               // dial a candidate up to this many times before dropping it
+	retryRounds     = 2               // rounds to wait before retrying a failed dial
 )
 
 type PeerInfo struct {
@@ -49,10 +53,11 @@ type options struct {
 }
 
 type state struct {
-	mu      sync.Mutex
-	visited map[string]bool
-	peers   map[string]PeerInfo
-	queries int
+	mu        sync.Mutex
+	attempts  map[string]int      // addr -> dial attempts so far
+	connected map[string]bool     // addr that completed a handshake
+	peers     map[string]PeerInfo // verified (answered a PEX request), keyed by IP
+	queries   int
 }
 
 // pexClient is a minimal PEX reactor: request addrs from every outbound peer
@@ -63,6 +68,7 @@ type pexClient struct {
 	p2p.BaseReactor
 	pexCh     chan []tmp2p.NetAddress
 	sw        *p2p.Switch
+	st        *state
 	networks  map[string]string // peer ID -> observed network
 	connected int
 	mu        sync.Mutex
@@ -97,6 +103,12 @@ func (r *pexClient) AddPeer(p p2p.Peer) {
 	r.mu.Unlock()
 	fmt.Printf("    [dial] connected %s net=%q\n", p.RemoteAddr().String(), net)
 	if p.IsOutbound() {
+		// Record the dialed address as connected (handshake completed).
+		if r.st != nil {
+			if na := p.SocketAddr(); na != nil && isPublicIPv4(na.IP.String()) {
+				r.st.markConnected(fmt.Sprintf("%s@%s:%d", p.ID(), na.IP.String(), na.Port))
+			}
+		}
 		r.mu.Lock()
 		r.reqs[string(p.ID())] = 1
 		r.mu.Unlock()
@@ -117,6 +129,20 @@ func (r *pexClient) Receive(e p2p.Envelope) {
 	addrs, ok := e.Message.(*tmp2p.PexAddrs)
 	if !ok {
 		return
+	}
+	// A PEX response proves this peer is live right now: record it as verified.
+	if r.st != nil {
+		if na := e.Src.SocketAddr(); na != nil {
+			ip := na.IP.String()
+			if isPublicIPv4(ip) {
+				pi := PeerInfo{ID: string(e.Src.ID()), IP: ip, Port: uint32(na.Port)}
+				r.st.mu.Lock()
+				if _, exists := r.st.peers[ip]; !exists {
+					r.st.peers[ip] = pi
+				}
+				r.st.mu.Unlock()
+			}
+		}
 	}
 	select {
 	case r.pexCh <- addrs.Addrs:
@@ -174,7 +200,7 @@ func parseFlags() options {
 	var o options
 	flag.StringVar(&o.seeds, "seeds", "", "comma-separated P2P seeds (nodeID@host:port)")
 	flag.StringVar(&o.network, "network", "", "chain-id sent in the node-info handshake (learned if empty)")
-	flag.StringVar(&o.out, "out", "", "output peer_ips.json path (merged {ip: ts})")
+	flag.StringVar(&o.out, "out", "", "output peer_ips.json path ({ip: ts} of verified peers only)")
 	flag.StringVar(&o.jsonOut, "json", "", "optional detailed peers JSON output path")
 	flag.StringVar(&o.verify, "verify", "", "verify peers in a pex_peers.json file (dial each, report observed network)")
 	flag.IntVar(&o.time, "time", 180, "max crawl time in seconds")
@@ -186,24 +212,19 @@ func parseFlags() options {
 
 func run(o options) int {
 	st := &state{
-		visited: map[string]bool{},
-		peers:   map[string]PeerInfo{},
+		attempts:  map[string]int{},
+		connected: map[string]bool{},
+		peers:     map[string]PeerInfo{},
 	}
 	start := time.Now()
 	deadline := start.Add(time.Duration(o.time) * time.Second)
-
-	existing := map[string]int64{}
-	if o.out != "" {
-		if data, err := os.ReadFile(o.out); err == nil {
-			_ = json.Unmarshal(data, &existing)
-		}
-	}
 
 	sw, rc, network, err := buildSwitch(o.network)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "switch: %v\n", err)
 		return 1
 	}
+	rc.st = st
 	if err := sw.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "switch start: %v\n", err)
 		return 1
@@ -215,12 +236,16 @@ func run(o options) int {
 		return verify(o, sw, rc, deadline)
 	}
 
-	pending := map[string]bool{}
+	// queue maps a candidate addr to the round it was last dialed (-1 = never).
+	// Candidates are dialed, retried after failed dials (retryRounds apart, up
+	// to maxDialAttempts times), and only ever counted as peers once they
+	// connect and answer a PEX request. Unreachable/silent candidates drop out.
+	queue := map[string]int{}
 	if o.seeds != "" {
 		for _, s := range strings.Split(o.seeds, ",") {
 			s = strings.TrimSpace(s)
 			if s != "" {
-				pending[s] = true
+				queue[s] = -1
 			}
 		}
 	}
@@ -229,42 +254,43 @@ func run(o options) int {
 	for time.Now().Before(deadline) && rounds < o.depth {
 		if o.verbose {
 			fmt.Printf("[%s] round %d: %d queued, %d queries\n",
-				time.Now().Format("15:04:05"), rounds, len(pending), st.queries)
+				time.Now().Format("15:04:05"), rounds, len(queue), st.queries)
 		}
 
-		// Take up to roundAddrLimit unvisited addresses to dial this round;
-		// already-visited ones are dropped. Peers are never re-dialed, but each
-		// connected peer is re-requested (see pexClient) for fresh address
-		// samples until it has been queried maxPeerQueries times.
+		// Prune candidates that connected (now being queried) or gave up.
+		for a := range queue {
+			if st.isConnected(a) || st.attemptsOf(a) >= maxDialAttempts {
+				delete(queue, a)
+			}
+		}
+		if len(queue) == 0 && !rc.hasActiveQueries() {
+			break
+		}
+
+		// Take up to roundAddrLimit candidates that are due for a dial attempt.
 		batch := []string{}
-		for a := range pending {
-			if st.isVisited(a) {
-				delete(pending, a)
-				continue
+		for a, dr := range queue {
+			if dr >= 0 && rounds-dr < retryRounds {
+				continue // waiting out the retry backoff
 			}
 			batch = append(batch, a)
-			delete(pending, a)
 			if len(batch) >= roundAddrLimit {
 				break
 			}
 		}
-
-		if len(batch) == 0 && !rc.hasActiveQueries() {
-			// Nothing left to dial and no peer still being queried: all unique
-			// peers have been found and each queried to exhaustion.
-			break
+		for _, a := range batch {
+			st.markDialed(a)
+			queue[a] = rounds
 		}
 
 		if len(batch) > 0 {
-			for _, a := range batch {
-				st.markVisited(a)
-			}
 			valid := []string{}
 			for _, a := range batch {
 				if _, err := p2p.NewNetAddressString(a); err != nil {
 					if o.verbose {
 						fmt.Printf("  bad seed %q: %v\n", a, err)
 					}
+					delete(queue, a)
 					continue
 				}
 				valid = append(valid, a)
@@ -277,7 +303,7 @@ func run(o options) int {
 		}
 
 		// Collect responses until the round window elapses (or we already have
-		// a full batch of fresh peers to dial), expanding `pending`.
+		// a full batch of fresh candidates to dial), expanding `queue`.
 		roundEnd := time.Now().Add(roundWait)
 		newQueued := 0
 	collect:
@@ -291,16 +317,12 @@ func run(o options) int {
 					if !isPublicIPv4(a.IP) {
 						continue
 					}
-					pi := PeerInfo{ID: a.ID, IP: a.IP, Port: a.Port}
-					st.mu.Lock()
-					if _, ok := st.peers[a.IP]; !ok {
-						st.peers[a.IP] = pi
-					}
-					st.mu.Unlock()
 					addr := fmt.Sprintf("%s@%s:%d", a.ID, a.IP, a.Port)
-					if !st.isVisited(addr) {
-						pending[addr] = true
-						newQueued++
+					if !st.isConnected(addr) && st.attemptsOf(addr) < maxDialAttempts {
+						if _, inQueue := queue[addr]; !inQueue {
+							queue[addr] = -1
+							newQueued++
+						}
 					}
 				}
 				if newQueued >= roundAddrLimit {
@@ -323,16 +345,13 @@ func run(o options) int {
 	sort.Slice(peers, func(i, j int) bool { return peers[i].IP < peers[j].IP })
 
 	now := time.Now().Unix()
-	merged := map[string]int64{}
-	for ip, ts := range existing {
-		merged[ip] = ts
-	}
+	verified := map[string]int64{}
 	for _, p := range peers {
-		merged[p.IP] = now
+		verified[p.IP] = now
 	}
 
 	if o.out != "" {
-		writeJSON(o.out, merged)
+		writeJSON(o.out, verified)
 	}
 	if o.jsonOut != "" {
 		writeJSON(o.jsonOut, map[string]interface{}{
@@ -343,8 +362,8 @@ func run(o options) int {
 		})
 	}
 
-	fmt.Printf("[%s] done: %d queries, %d unique peers, %d total ips, %ds\n",
-		time.Now().Format("15:04:05"), st.queries, len(peers), len(merged),
+	fmt.Printf("[%s] done: %d queries, %d verified peers, %ds\n",
+		time.Now().Format("15:04:05"), st.queries, len(peers),
 		int(time.Since(start).Seconds()))
 	return 0
 }
@@ -419,6 +438,7 @@ func buildSwitch(network string) (*p2p.Switch, *pexClient, string, error) {
 	ni := buildNodeInfo(network, nodeKey.PrivKey.PubKey())
 
 	transport := p2p.NewMultiplexTransport(ni, *nodeKey, conn.DefaultMConnConfig())
+	bumpTransportTimeouts(transport, 5*time.Second, 15*time.Second)
 	if na, err := ni.NetAddress(); err == nil {
 		_ = transport.Listen(*na)
 	}
@@ -439,20 +459,28 @@ func buildSwitch(network string) (*p2p.Switch, *pexClient, string, error) {
 	return sw, rc, network, nil
 }
 
-func (st *state) isVisited(key string) bool {
+func (st *state) markDialed(key string) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	return st.visited[key]
+	st.attempts[key]++
 }
 
-func (st *state) markVisited(key string) bool {
+func (st *state) attemptsOf(key string) int {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	if st.visited[key] {
-		return false
-	}
-	st.visited[key] = true
-	return true
+	return st.attempts[key]
+}
+
+func (st *state) markConnected(key string) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.connected[key] = true
+}
+
+func (st *state) isConnected(key string) bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.connected[key]
 }
 
 func isPublicIPv4(ip string) bool {
@@ -482,6 +510,24 @@ func isPublicIPv4(ip string) bool {
 		return false
 	}
 	return true
+}
+
+// bumpTransportTimeouts raises the multiplex transport's dial/handshake
+// timeouts, which are hardcoded to a far-too-short 1s/3s (upstream config
+// defaults are 3s/20s). Slow-but-live WAN peers otherwise fail the handshake.
+// The fields are unexported, so this uses reflection+unsafe; it is a no-op if
+// the field layout ever changes.
+func bumpTransportTimeouts(t *p2p.MultiplexTransport, dial, handshake time.Duration) {
+	refl := reflect.ValueOf(t).Elem()
+	set := func(name string, d time.Duration) {
+		f := refl.FieldByName(name)
+		if !f.IsValid() {
+			return
+		}
+		reflect.NewAt(f.Type(), unsafe.Pointer(f.UnsafeAddr())).Elem().SetInt(int64(d))
+	}
+	set("dialTimeout", dial)
+	set("handshakeTimeout", handshake)
 }
 
 func buildNodeInfo(network string, pub crypto.PubKey) p2p.DefaultNodeInfo {

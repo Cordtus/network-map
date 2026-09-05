@@ -57,7 +57,7 @@ import json,sys
 d=json.load(open('$DATA_DIR/endpoints.json'))
 print(next(iter(d.values()))['chain_id'])" 2>/dev/null || true)
     if [ -n "$SEEDS" ] && [ -n "$NETWORK_ID" ]; then
-        "$PEX_BIN" --seeds "$SEEDS" --network "$NETWORK_ID" --time 180 \
+        "$PEX_BIN" --seeds "$SEEDS" --network "$NETWORK_ID" --time 240 \
             --out "$DATA_DIR/peer_ips.json" --json "$DATA_DIR/pex_peers.json"
     else
         echo "    no pex seeds/chain-id available; skipping PEX expansion"
