@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -53,11 +56,12 @@ type options struct {
 }
 
 type state struct {
-	mu        sync.Mutex
-	attempts  map[string]int      // addr -> dial attempts so far
-	connected map[string]bool     // addr that completed a handshake
-	peers     map[string]PeerInfo // verified (answered a PEX request), keyed by IP
-	queries   int
+	mu         sync.Mutex
+	attempts   map[string]int      // addr -> dial attempts so far
+	connected  map[string]bool     // addr that completed a handshake
+	candidates map[string]PeerInfo // every discovered peer, keyed by IP
+	dead       map[string]bool     // peers that definitively refused a connection
+	queries    int
 }
 
 // pexClient is a minimal PEX reactor: request addrs from every outbound peer
@@ -130,20 +134,6 @@ func (r *pexClient) Receive(e p2p.Envelope) {
 	if !ok {
 		return
 	}
-	// A PEX response proves this peer is live right now: record it as verified.
-	if r.st != nil {
-		if na := e.Src.SocketAddr(); na != nil {
-			ip := na.IP.String()
-			if isPublicIPv4(ip) {
-				pi := PeerInfo{ID: string(e.Src.ID()), IP: ip, Port: uint32(na.Port)}
-				r.st.mu.Lock()
-				if _, exists := r.st.peers[ip]; !exists {
-					r.st.peers[ip] = pi
-				}
-				r.st.mu.Unlock()
-			}
-		}
-	}
 	select {
 	case r.pexCh <- addrs.Addrs:
 	default:
@@ -212,9 +202,10 @@ func parseFlags() options {
 
 func run(o options) int {
 	st := &state{
-		attempts:  map[string]int{},
-		connected: map[string]bool{},
-		peers:     map[string]PeerInfo{},
+		attempts:   map[string]int{},
+		connected:  map[string]bool{},
+		candidates: map[string]PeerInfo{},
+		dead:       map[string]bool{},
 	}
 	start := time.Now()
 	deadline := start.Add(time.Duration(o.time) * time.Second)
@@ -317,6 +308,14 @@ func run(o options) int {
 					if !isPublicIPv4(a.IP) {
 						continue
 					}
+					// Every discovered address becomes a candidate. Whether it
+					// is reported is decided later by the dead-peer probe, not
+					// by whether it answered during the crawl.
+					st.mu.Lock()
+					if _, ok := st.candidates[a.IP]; !ok {
+						st.candidates[a.IP] = PeerInfo{ID: a.ID, IP: a.IP, Port: a.Port}
+					}
+					st.mu.Unlock()
 					addr := fmt.Sprintf("%s@%s:%d", a.ID, a.IP, a.Port)
 					if !st.isConnected(addr) && st.attemptsOf(addr) < maxDialAttempts {
 						if _, inQueue := queue[addr]; !inQueue {
@@ -335,37 +334,89 @@ func run(o options) int {
 		rounds++
 	}
 
-	// Assemble outputs.
-	st.mu.Lock()
-	peers := make([]PeerInfo, 0, len(st.peers))
-	for _, p := range st.peers {
-		peers = append(peers, p)
-	}
-	st.mu.Unlock()
-	sort.Slice(peers, func(i, j int) bool { return peers[i].IP < peers[j].IP })
+	// Classify each candidate: a peer is reported unless it is definitively
+	// dead (TCP connection refused at its advertised address). Slow, firewalled,
+	// or otherwise ambiguous peers are kept - absence of a PEX response during
+	// the crawl is not proof of death.
+	dead, alive := classifyCandidates(st)
 
 	now := time.Now().Unix()
-	verified := map[string]int64{}
-	for _, p := range peers {
-		verified[p.IP] = now
+	out := map[string]int64{}
+	for _, p := range alive {
+		out[p.IP] = now
 	}
 
 	if o.out != "" {
-		writeJSON(o.out, verified)
+		writeJSON(o.out, out)
 	}
 	if o.jsonOut != "" {
 		writeJSON(o.jsonOut, map[string]interface{}{
 			"generatedAt": time.Now().UTC().Format(time.RFC3339),
 			"network":     network,
 			"queries":     st.queries,
-			"peers":       peers,
+			"peers":       alive,
+			"dead":        dead,
 		})
 	}
 
-	fmt.Printf("[%s] done: %d queries, %d verified peers, %ds\n",
-		time.Now().Format("15:04:05"), st.queries, len(peers),
+	fmt.Printf("[%s] done: %d queries, %d candidates, %d reported, %d dead, %ds\n",
+		time.Now().Format("15:04:05"), st.queries, len(st.candidates), len(alive), len(dead),
 		int(time.Since(start).Seconds()))
 	return 0
+}
+
+// classifyCandidates TCP-probes every discovered candidate in parallel and
+// splits them into definitively-dead (connection refused) and reportable peers.
+func classifyCandidates(st *state) (dead []PeerInfo, alive []PeerInfo) {
+	st.mu.Lock()
+	cands := make([]PeerInfo, 0, len(st.candidates))
+	for _, p := range st.candidates {
+		cands = append(cands, p)
+	}
+	st.mu.Unlock()
+
+	sem := make(chan struct{}, 128)
+	var wg sync.WaitGroup
+	for _, p := range cands {
+		p := p
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			if isDead(p) {
+				st.mu.Lock()
+				st.dead[p.IP] = true
+				st.mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	for _, p := range cands {
+		if st.dead[p.IP] {
+			dead = append(dead, p)
+		} else {
+			alive = append(alive, p)
+		}
+	}
+	sort.Slice(alive, func(i, j int) bool { return alive[i].IP < alive[j].IP })
+	sort.Slice(dead, func(i, j int) bool { return dead[i].IP < dead[j].IP })
+	return dead, alive
+}
+
+// isDead reports whether a peer is definitively dead: its TCP connection was
+// refused (port closed / host down). Timeouts are ambiguous and not counted.
+func isDead(p PeerInfo) bool {
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(p.IP, strconv.Itoa(int(p.Port))), 4*time.Second)
+	if err != nil {
+		var opErr *net.OpError
+		return errors.As(err, &opErr) && opErr.Op == "dial" && (errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.EHOSTUNREACH))
+	}
+	_ = conn.Close()
+	return false
 }
 
 func verify(o options, sw *p2p.Switch, rc *pexClient, deadline time.Time) int {
