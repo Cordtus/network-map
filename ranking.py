@@ -3,14 +3,11 @@
 
 Reads every data/<slug>/all_nodes.json and computes, per network:
 
-- **distribution** — how geographically spread out the nodes are. Normalized
-  Shannon entropy over countries (H / ln(nodes)); 1.0 = every node in its own
-  country, 0.0 = all nodes in one country. Same provider in many countries
-  scores high here (spread out geographically, not independent).
-- **decentralization** — how spread out the nodes are across hosting
-  providers/ISPs. Normalized Shannon entropy over provider names; 1.0 = every
-  node on its own provider, 0.0 = all nodes on one provider. Many providers in
-  the same region score high here.
+- **distribution** - geographic spread: the share of nodes OUTSIDE the most
+  hosted country. Higher = more spread out (e.g. 75% means three quarters of
+  nodes are outside the top country).
+- **decentralization** - provider spread: the share of nodes OFF the most used
+  hosting provider/ISP. Higher = more decentralized.
 
 Writes data/chain_ranking.json, consumed by insights.html.
 """
@@ -19,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 from collections import Counter
 from datetime import datetime, timezone
@@ -36,18 +32,6 @@ def provider_name(org: str | None) -> str | None:
     if parts[0].startswith("AS") and len(parts) > 1:
         return parts[1]
     return org
-
-
-def norm_entropy(values, n: int) -> float:
-    """Shannon entropy over a count distribution, normalized to 0..1.
-
-    H / ln(n) is 1.0 when every node occupies its own category and 0.0 when all
-    nodes share a single category.
-    """
-    if n <= 1:
-        return 0.0
-    h = -sum((c / n) * math.log(c / n) for c in values if c > 0)
-    return h / math.log(n)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -74,18 +58,23 @@ def main(argv: list[str] | None = None) -> int:
         n = len(nodes)
         countries = Counter(g.get("countryCode") or g.get("country") or "?" for g in nodes)
         providers = Counter(p for g in nodes if (p := provider_name(g.get("org"))) is not None)
+        top_country, top_country_n = countries.most_common(1)[0]
+        top_isp, top_isp_n = providers.most_common(1)[0] if providers else ("?", 0)
         networks.append({
             "slug": net_dir.name,
             "nodes": n,
             "countries": len(countries),
             "regions": len({CONTINENTS.get(c, "Other") for c in countries}),
             "isps": len(providers),
-            "distribution": round(norm_entropy(countries.values(), n), 3),
-            "decentralization": round(norm_entropy(providers.values(), n), 3),
+            "topCountry": top_country,
+            "topCountryShare": round(top_country_n / n, 3),
+            "topIsp": top_isp,
+            "topIspShare": round(top_isp_n / n, 3),
             "generatedAt": doc.get("generatedAt", ""),
         })
 
-    networks.sort(key=lambda x: (-x["distribution"], -x["decentralization"], x["slug"]))
+    # Most distributed first (lowest share of nodes in the top country).
+    networks.sort(key=lambda x: (x["topCountryShare"], x["slug"]))
     out = {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "networks": networks,
@@ -93,8 +82,11 @@ def main(argv: list[str] | None = None) -> int:
     out_path = data_dir / "chain_ranking.json"
     out_path.write_text(json.dumps(out, indent=2))
     for net in networks:
-        print(f"{net['slug']}: nodes={net['nodes']} countries={net['countries']} "
-              f"isps={net['isps']} dist={net['distribution']} dec={net['decentralization']}")
+        outside_country = round(100 * (1 - net["topCountryShare"]))
+        outside_isp = round(100 * (1 - net["topIspShare"]))
+        print(f"{net['slug']}: n={net['nodes']} countries={net['countries']} isps={net['isps']} "
+              f"{outside_country}% outside top country ({net['topCountry']}) | "
+              f"{outside_isp}% off top ISP ({net['topIsp']})")
     print("wrote", out_path)
     return 0
 
