@@ -57,19 +57,17 @@ def main(argv: list[str] | None = None) -> int:
             continue
         n = len(nodes)
         countries = Counter(g.get("countryCode") or g.get("country") or "?" for g in nodes)
-        providers = Counter(p for g in nodes if (p := provider_name(g.get("org"))) is not None)
+        asns = Counter(g.get("asn") for g in nodes if g.get("asn"))
         top_country, top_country_n = countries.most_common(1)[0]
-        top_isp, top_isp_n = providers.most_common(1)[0] if providers else ("?", 0)
+        top_asn, top_asn_n = asns.most_common(1)[0] if asns else ("?", 0)
         networks.append({
             "slug": net_dir.name,
             "nodes": n,
             "countries": len(countries),
             "regions": len({CONTINENTS.get(c, "Other") for c in countries}),
-            "isps": len(providers),
-            "topCountry": top_country,
+            "isps": len({provider_name(g.get("org")) for g in nodes if provider_name(g.get("org"))}),
             "topCountryShare": round(top_country_n / n, 3),
-            "topIsp": top_isp,
-            "topIspShare": round(top_isp_n / n, 3),
+            "topAsnShare": round(top_asn_n / n, 3),
             "generatedAt": doc.get("generatedAt", ""),
         })
 
@@ -83,10 +81,9 @@ def main(argv: list[str] | None = None) -> int:
     out_path.write_text(json.dumps(out, indent=2))
     for net in networks:
         outside_country = round(100 * (1 - net["topCountryShare"]))
-        outside_isp = round(100 * (1 - net["topIspShare"]))
+        outside_asn = round(100 * (1 - net["topAsnShare"]))
         print(f"{net['slug']}: n={net['nodes']} countries={net['countries']} isps={net['isps']} "
-              f"{outside_country}% outside top country ({net['topCountry']}) | "
-              f"{outside_isp}% off top ISP ({net['topIsp']})")
+              f"{outside_country}% outside top region | {outside_asn}% outside top ASN")
     print("wrote", out_path)
     return 0
 

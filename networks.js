@@ -18,6 +18,15 @@ window.providerName = function (org) {
     return /^AS\d+\s+/.test(s) ? s.replace(/^AS\d+\s+/, "") : s;
 };
 
+// Format a generatedAt ISO timestamp as a compact local "YYYY-MM-DD HH:MM".
+window.fmtGenerated = function (iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d)) return String(iso).slice(0, 16).replace("T", " ");
+    const p = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
 // Current network: ?network= param wins, else the persisted selection, else
 // the first supported network. The param is persisted for later visits.
 window.currentNetwork = function () {

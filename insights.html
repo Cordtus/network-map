@@ -86,6 +86,12 @@
   .nodes-stats .stat .n { font-size: 17px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
   .nodes-stats .stat .l { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
   .nodes-stats .sep { width: 1px; height: 28px; background: var(--border); }
+  .stat-gen {
+    display: inline-flex; align-items: center; gap: 6px; height: 18px; padding: 0 10px;
+    border-radius: 9px; background: color-mix(in srgb, var(--accent) 8%, transparent);
+    border: 1px solid var(--border); font-size: 10px; color: var(--muted); white-space: nowrap;
+  }
+  .stat-gen .n { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
   .page-meta { text-align: center; color: var(--muted); font-size: 11px; padding: 0 0 18px; }
   @media (max-width:760px) { .nodes-stats { top: 112px; left: 12px; } }
 
@@ -97,13 +103,23 @@
   .rank-hint { font-size: 11px; color: var(--muted); margin: -4px 0 10px; }
   .rank-badge { display: inline-block; min-width: 24px; padding: 1px 6px; border-radius: 10px;
                 background: rgba(31,119,255,.15); color: var(--accent); font-size: 10px; font-weight: 700; text-align: center; }
-  .rank-cell { white-space: nowrap; }
-  .score { display: inline-flex; align-items: center; width: 110px; height: 8px; border-radius: 4px;
-           background: var(--surface-2); overflow: hidden; vertical-align: middle; margin: 0 6px; }
-  .score i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
-  .score.dec i { background: var(--accent-2); }
-  .rank-cell .pct { color: var(--text); font-variant-numeric: tabular-nums; }
-  .lbl { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .rank-text { display: block; margin-top: 3px; font-size: 11px; line-height: 1.5; color: var(--text); }
+  .rank-layout { display: flex; gap: 16px; align-items: stretch; }
+  .rank-main { flex: 1; min-width: 0; }
+  .rank-wrap { max-height: 250px; overflow: auto; }
+  #rankTable { min-width: 700px; table-layout: fixed; }
+  #rankTable th, #rankTable td { padding: 6px 8px; white-space: normal; vertical-align: top; }
+  #rankTable th:nth-child(1) { width: 15%; }
+  #rankTable th:nth-child(2), #rankTable th:nth-child(3), #rankTable th:nth-child(4), #rankTable th:nth-child(5) { width: 8%; }
+  #rankTable th:nth-child(6), #rankTable th:nth-child(7) { width: 26.5%; }
+  #rankTable th { cursor: pointer; user-select: none; }
+  #rankTable th:hover { color: var(--text); }
+  #rankTable th.sorted { color: var(--text); }
+  .rank-note { flex: 0 0 300px; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+               background: var(--surface-2); color: var(--muted); font-size: 12px; line-height: 1.55; }
+  .rank-note h3 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text); }
+  .rank-note p { margin: 0 0 8px; }
+  .rank-note p:last-child { margin-bottom: 0; }
 
   .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:16px; padding:24px 28px 36px; }
   .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; box-shadow:var(--shadow); }
@@ -124,6 +140,8 @@
   <div class="stat"><div class="n" id="nodesTotal">—</div><div class="l">nodes</div></div>
   <div class="sep"></div>
   <div class="stat"><div class="n" id="nodesIsps">—</div><div class="l">ISPs</div></div>
+  <div class="sep"></div>
+  <div class="stat-gen"><span class="l">data generated at</span><span class="n" id="nodesGen">—</span></div>
 </div>
 <div id="appbar">
   <div class="brand">
@@ -144,11 +162,28 @@
 <div class="grid">
   <div class="panel" id="rankPanel" style="grid-column:1/-1">
     <h2>Distribution &amp; decentralization</h2>
-    <div class="rank-hint">Distribution = share of nodes <b>outside</b> the top country · Decentralization = share of nodes <b>off</b> the top hosting provider — higher is more spread</div>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Rank</th><th>Network</th><th>Nodes</th><th>Countries</th><th>Regions</th><th>ISPs</th><th>Distribution</th><th>Decentralization</th></tr></thead>
-      <tbody id="rankBody"></tbody>
-    </table></div>
+    <div class="rank-hint">Distribution = share of discovered nodes <b>outside</b> the top region · Decentralization = share <b>off</b> the top ASN — higher is more spread. Click a column header to sort.</div>
+    <div class="rank-layout">
+      <div class="rank-main">
+        <div class="rank-wrap"><table id="rankTable">
+          <thead><tr>
+            <th data-key="name">Network</th>
+            <th data-key="nodes">Nodes</th>
+            <th data-key="countries">Countries</th>
+            <th data-key="regions">Regions</th>
+            <th data-key="isps">ISPs</th>
+            <th data-key="dist">Distribution</th>
+            <th data-key="dec">Decentralization</th>
+          </tr></thead>
+          <tbody id="rankBody"></tbody>
+        </table></div>
+      </div>
+      <div class="rank-note">
+        <h3>How nodes are identified</h3>
+        <p>Networks are crawled from public RPC endpoints and P2P/PEX peer gossip; every discovered host is geolocated and enriched with provider/ASN and WHOIS data.</p>
+        <p>This is not necessarily a complete list of all nodes for a given network — some nodes may be specifically configured not to announce their existence to the rest of the network.</p>
+      </div>
+    </div>
   </div>
   <div class="panel"><h2>Top ISPs / hosting providers</h2><div class="chart"><canvas id="isps"></canvas></div></div>
   <div class="panel"><h2>Top countries</h2><div class="chart"><canvas id="countries"></canvas></div></div>
@@ -270,6 +305,7 @@ function render(D) {
   const s = D.stats;
   document.getElementById('nodesTotal').textContent = s.total;
   document.getElementById('nodesIsps').textContent = s.isps;
+  document.getElementById('nodesGen').textContent = window.fmtGenerated(D.generatedAt);
 
   const name = (window.findNetwork(D.network) || {}).name || D.network;
   const gen = D.generatedAt ? 'generated ' + String(D.generatedAt).slice(0, 10) : '';
@@ -301,10 +337,56 @@ fetch(`data/${net.slug}/insights.json`)
     console.error(`Failed to load insights for ${net.slug}:`, err);
     document.getElementById('nodesTotal').textContent = '—';
     document.getElementById('nodesIsps').textContent = '—';
+    document.getElementById('nodesGen').textContent = '—';
     document.getElementById('pageMeta').textContent = `${net.name} — no insights data`;
   });
 
 // ---- cross-chain distribution / decentralization ranking ----
+let rankNets = null;
+let rankSort = { key: 'dist', dir: 1 };
+
+function rankName(n) { return (window.findNetwork(n.slug) || {}).name || n.slug; }
+
+function renderRankingRows() {
+  const nets = [...rankNets];
+  const { key, dir } = rankSort;
+  nets.sort((a, b) => {
+    let av, bv;
+    if (key === 'name') { av = rankName(a); bv = rankName(b); }
+    else if (key === 'nodes') { av = a.nodes; bv = b.nodes; }
+    else if (key === 'countries') { av = a.countries; bv = b.countries; }
+    else if (key === 'regions') { av = a.regions; bv = b.regions; }
+    else if (key === 'isps') { av = a.isps; bv = b.isps; }
+    else if (key === 'dist') { av = a.topCountryShare; bv = b.topCountryShare; }
+    else { av = a.topAsnShare; bv = b.topAsnShare; }
+    return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
+  });
+  // Rank badges by the two metrics regardless of current sort.
+  const byDist = [...rankNets].sort((a, b) => a.topCountryShare - b.topCountryShare);
+  const byDec = [...rankNets].sort((a, b) => a.topAsnShare - b.topAsnShare);
+  const distRank = new Map(byDist.map((n, i) => [n.slug, i + 1]));
+  const decRank = new Map(byDec.map((n, i) => [n.slug, i + 1]));
+  const badge = r => `<span class="rank-badge">#${r}</span>`;
+  document.getElementById('rankBody').innerHTML = nets.map(n => {
+    const outsideRegion = Math.round(100 * (1 - n.topCountryShare));
+    const outsideAsn = Math.round(100 * (1 - n.topAsnShare));
+    return `<tr>
+      <td>${esc(rankName(n))}</td>
+      <td>${n.nodes}</td>
+      <td>${n.countries}</td>
+      <td>${n.regions}</td>
+      <td>${n.isps}</td>
+      <td>${badge(distRank.get(n.slug))}<span class="rank-text">${outsideRegion}% of discovered nodes located outside of the top region (containing ${100 - outsideRegion}% of total)</span></td>
+      <td>${badge(decRank.get(n.slug))}<span class="rank-text">${outsideAsn}% of discovered nodes originating from outside of the top ASN (containing ${100 - outsideAsn}% of total)</span></td>
+    </tr>`;
+  }).join('');
+  document.querySelectorAll('#rankTable th').forEach(th => {
+    const active = th.dataset.key === rankSort.key;
+    th.classList.toggle('sorted', active);
+    th.dataset.arrow = active ? (rankSort.dir === 1 ? ' ▲' : ' ▼') : '';
+  });
+}
+
 function renderRanking(doc) {
   const panel = document.getElementById('rankPanel');
   const nets = doc && doc.networks;
@@ -312,25 +394,16 @@ function renderRanking(doc) {
     if (panel) panel.style.display = 'none';
     return;
   }
-  // Lower share of nodes in the top country/ISP = more spread = higher rank.
-  const byDist = [...nets].sort((a, b) => a.topCountryShare - b.topCountryShare);
-  const byDec = [...nets].sort((a, b) => a.topIspShare - b.topIspShare);
-  const decRank = new Map(byDec.map((n, i) => [n.slug, i + 1]));
-  const badge = r => `<span class="rank-badge">#${r}</span>`;
-  document.getElementById('rankBody').innerHTML = byDist.map((n, i) => {
-    const outsideCountry = Math.round(100 * (1 - n.topCountryShare));
-    const offIsp = Math.round(100 * (1 - n.topIspShare));
-    return `<tr>
-      <td>${i + 1}</td>
-      <td>${esc((window.findNetwork(n.slug) || {}).name || n.slug)}</td>
-      <td>${n.nodes}</td>
-      <td>${n.countries}</td>
-      <td>${n.regions}</td>
-      <td>${n.isps}</td>
-      <td>${badge(i + 1)}<span class="score"><i style="width:${outsideCountry}%"></i></span><span class="pct">${outsideCountry}%</span> <span class="lbl">outside ${esc(n.topCountry)}</span></td>
-      <td>${badge(decRank.get(n.slug))}<span class="score dec"><i style="width:${offIsp}%"></i></span><span class="pct">${offIsp}%</span> <span class="lbl">off ${esc(n.topIsp)}</span></td>
-    </tr>`;
-  }).join('');
+  rankNets = nets;
+  document.querySelectorAll('#rankTable th').forEach(th => {
+    th.onclick = () => {
+      const key = th.dataset.key;
+      if (rankSort.key === key) rankSort.dir *= -1;
+      else { rankSort.key = key; rankSort.dir = key === 'name' ? 1 : -1; }
+      renderRankingRows();
+    };
+  });
+  renderRankingRows();
 }
 
 fetch(`data/chain_ranking.json`)
