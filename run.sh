@@ -72,6 +72,9 @@ python3 geolocate.py --data-dir "$DATA_DIR" --network "$NETWORK"
 echo "==> Building insights dashboard"
 python3 analyze.py --data-dir "$DATA_DIR" --network "$NETWORK"
 
+echo "==> Building cross-network distribution/decentralization ranking"
+python3 ranking.py --data-dir "$DIR/data"
+
 echo "==> Serving at http://127.0.0.1:$PORT/index.html?network=$NETWORK (map) and /insights.html?network=$NETWORK (insights)"
 python3 -m http.server "$PORT" --bind 127.0.0.1 --directory "$DIR" >/dev/null 2>&1 &
 SERVER_PID=$!

@@ -94,6 +94,16 @@
   .country-legend .cl i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
   .country-legend .cl b { color: var(--text); font-variant-numeric: tabular-nums; }
 
+  .rank-hint { font-size: 11px; color: var(--muted); margin: -4px 0 10px; }
+  .rank-badge { display: inline-block; min-width: 24px; padding: 1px 6px; border-radius: 10px;
+                background: rgba(31,119,255,.15); color: var(--accent); font-size: 10px; font-weight: 700; text-align: center; }
+  .rank-cell { white-space: nowrap; }
+  .score { display: inline-flex; align-items: center; width: 110px; height: 8px; border-radius: 4px;
+           background: var(--surface-2); overflow: hidden; vertical-align: middle; margin: 0 6px; }
+  .score i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .score.dec i { background: var(--accent-2); }
+  .rank-cell .pct { color: var(--text); font-variant-numeric: tabular-nums; }
+
   .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:16px; padding:24px 28px 36px; }
   .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; box-shadow:var(--shadow); }
   .panel h2 { margin:0 0 10px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
@@ -131,6 +141,14 @@
 </div>
 
 <div class="grid">
+  <div class="panel" id="rankPanel" style="grid-column:1/-1">
+    <h2>Distribution &amp; decentralization</h2>
+    <div class="rank-hint">Distribution = geographic spread across countries · Decentralization = spread across hosting providers/ISPs</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Rank</th><th>Network</th><th>Nodes</th><th>Countries</th><th>Regions</th><th>ISPs</th><th>Distribution</th><th>Decentralization</th></tr></thead>
+      <tbody id="rankBody"></tbody>
+    </table></div>
+  </div>
   <div class="panel"><h2>Top ISPs / hosting providers</h2><div class="chart"><canvas id="isps"></canvas></div></div>
   <div class="panel"><h2>Top countries</h2><div class="chart"><canvas id="countries"></canvas></div></div>
   <div class="panel"><h2>Region</h2><div class="chart"><canvas id="regions"></canvas></div>
@@ -284,6 +302,35 @@ fetch(`data/${net.slug}/insights.json`)
     document.getElementById('nodesIsps').textContent = '—';
     document.getElementById('pageMeta').textContent = `${net.name} — no insights data`;
   });
+
+// ---- cross-chain distribution / decentralization ranking ----
+function renderRanking(doc) {
+  const panel = document.getElementById('rankPanel');
+  const nets = doc && doc.networks;
+  if (!panel || !nets || !nets.length) {
+    if (panel) panel.style.display = 'none';
+    return;
+  }
+  const decRank = new Map([...nets].sort((a, b) => b.decentralization - a.decentralization)
+    .map((n, i) => [n.slug, i + 1]));
+  const badge = r => `<span class="rank-badge">#${r}</span>`;
+  document.getElementById('rankBody').innerHTML = nets.map((n, i) =>
+    `<tr>
+      <td>${i + 1}</td>
+      <td>${esc((window.findNetwork(n.slug) || {}).name || n.slug)}</td>
+      <td>${n.nodes}</td>
+      <td>${n.countries}</td>
+      <td>${n.regions}</td>
+      <td>${n.isps}</td>
+      <td>${badge(i + 1)}<span class="score"><i style="width:${Math.round(100 * n.distribution)}%"></i></span><span class="pct">${Math.round(100 * n.distribution)}%</span></td>
+      <td>${badge(decRank.get(n.slug))}<span class="score dec"><i style="width:${Math.round(100 * n.decentralization)}%"></i></span><span class="pct">${Math.round(100 * n.decentralization)}%</span></td>
+    </tr>`).join('');
+}
+
+fetch(`data/chain_ranking.json`)
+  .then(r => r.ok ? r.json() : null)
+  .then(renderRanking)
+  .catch(() => renderRanking(null));
 </script>
 </body>
 </html>

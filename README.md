@@ -150,6 +150,7 @@ Per network under `data/<slug>/`:
 - `pex/main.go` — P2P/PEX peer-gossip crawler (Go, uses CometBFT)
 - `geolocate.py` — geolocation + WHOIS + enrichment (cached)
 - `analyze.py` — insights data generator
+- `ranking.py` — cross-network distribution / decentralization ranking (`data/chain_ranking.json`)
 - `networks.js` — supported network registry (drives the header dropdown)
 - `index.html` — Leaflet map
 - `insights.html` — ISP / country / region / timezone dashboards
